@@ -1,12 +1,5 @@
 import { useMemo } from "react";
-import {
-  Pressable,
-  Text,
-  View,
-  type PressableStateCallbackType,
-  type StyleProp,
-  type ViewStyle,
-} from "react-native";
+import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { clampPct, formatDisplayPct, formatResetLabel } from "./format";
 import { displayPercent, usedPercent } from "./model";
@@ -27,11 +20,11 @@ function fillToneStyle(tone: UsageTone) {
   }
 }
 
-function rowStyle(pinned: boolean) {
-  return ({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => {
-    if (pinned) return [styles.row, styles.rowPinned];
-    return hovered ? [styles.row, styles.rowHovered] : styles.row;
-  };
+// Pinned rows carry the pinned surface; hovering an unpinned row previews it at half strength,
+// so a hover never reads as the selection. Pinned rows do not react to hover.
+function highlightStyle(pinned: boolean, hovered: boolean) {
+  if (pinned) return styles.highlightPinned;
+  return hovered ? styles.highlightHovered : styles.highlightNone;
 }
 
 export function UsageWindowBar({
@@ -66,7 +59,6 @@ export function UsageWindowBar({
     : formatResetLabel(window.resetsAt);
 
   const accessibilityState = useMemo(() => ({ checked: pinned }), [pinned]);
-  const style = useMemo(() => rowStyle(pinned), [pinned]);
 
   // The whole row pins the window to the sidebar summary. Pinned or not, it keeps the same
   // padding so toggling only changes the background.
@@ -77,15 +69,47 @@ export function UsageWindowBar({
       accessibilityLabel={pinLabel}
       accessibilityState={accessibilityState}
       aria-checked={pinned}
-      style={style}
+      style={styles.row}
       testID={pinTestID}
     >
+      {({ hovered }: { hovered?: boolean }) => (
+        <WindowRowContent
+          highlight={highlightStyle(pinned, Boolean(hovered))}
+          label={window.label}
+          value={shownPct != null ? formatDisplayPct(shownPct, displayAs) : "—"}
+          trailing={trailing}
+          isAtRisk={isAtRisk}
+          fillStyle={fillStyle}
+        />
+      )}
+    </Pressable>
+  );
+}
+
+function WindowRowContent({
+  highlight,
+  label,
+  value,
+  trailing,
+  isAtRisk,
+  fillStyle,
+}: {
+  highlight: StyleProp<ViewStyle>;
+  label: string;
+  value: string;
+  trailing: string | null | undefined;
+  isAtRisk: boolean;
+  fillStyle: StyleProp<ViewStyle>;
+}) {
+  return (
+    <>
+      <View style={highlight} pointerEvents="none" />
       <View style={styles.labelRow}>
         <Text style={styles.label} numberOfLines={1}>
-          {window.label}
+          {label}
         </Text>
         <Text style={styles.value}>
-          {shownPct != null ? formatDisplayPct(shownPct, displayAs) : "—"}
+          {value}
           {trailing ? (
             <Text style={isAtRisk ? styles.atRisk : styles.reset}>{` · ${trailing}`}</Text>
           ) : null}
@@ -94,7 +118,7 @@ export function UsageWindowBar({
       <View style={styles.track}>
         <View style={fillStyle} />
       </View>
-    </Pressable>
+    </>
   );
 }
 
@@ -105,13 +129,25 @@ const styles = StyleSheet.create((theme) => ({
     marginHorizontal: -theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
     paddingVertical: theme.spacing[1.5],
-    borderRadius: theme.borderRadius.md,
+    // Its own stacking context, so the highlight layer paints above the card and below the text.
+    zIndex: 0,
   },
-  rowPinned: {
+  highlightNone: {
+    display: "none",
+  },
+  highlightPinned: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: -1,
+    borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surface2,
   },
-  rowHovered: {
-    backgroundColor: theme.colors.interactionHighlight,
+  // The pinned surface at half strength: a separate layer, so the text keeps full opacity.
+  highlightHovered: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: -1,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: theme.colors.surface2,
+    opacity: theme.opacity[50],
   },
   labelRow: {
     flexDirection: "row",

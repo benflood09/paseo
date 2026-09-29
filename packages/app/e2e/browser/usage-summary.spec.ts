@@ -73,6 +73,9 @@ test.describe("usage summary", () => {
       await qaScreenshot(page, "desktop-footer-closeup", { footerOnly: true });
       await pinRow(screen, "Claude", "Weekly").hover();
       await qaScreenshot(page, "desktop-row-hover");
+      await page.emulateMedia({ colorScheme: "dark" });
+      await qaScreenshot(page, "desktop-row-hover-dark");
+      await page.emulateMedia({ colorScheme: "light" });
     });
 
     await test.step("remaining flips the summary, the popover and the Usage screen", async () => {
