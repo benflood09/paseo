@@ -4,9 +4,7 @@ import { daemonWsRoutePattern } from "./daemon-port";
 
 export interface UsageReportsFixture {
   listRequests(): Array<{ forceRefresh: boolean; reportIds?: string[] }>;
-  agentRequests(): Array<{ agentId: string }>;
   waitForListRequests(count: number): Promise<void>;
-  waitForAgentRequests(count: number): Promise<void>;
 }
 
 interface UsageReportsFixtureOptions {
@@ -15,8 +13,6 @@ interface UsageReportsFixtureOptions {
    * request; a function builds the response when the request arrives (e.g. a fresh `fetchedAt`).
    */
   lists?: Array<UsageListResponse | (() => UsageListResponse)>;
-  /** Successive agent report IDs; the last one repeats. */
-  agentReportIds?: Array<string | null>;
   /** Advertise `features.usageSources`. False simulates a host from before usage sources. */
   usageSources?: boolean;
 }
@@ -95,9 +91,7 @@ export async function installUsageReportsFixture(
   options: UsageReportsFixtureOptions,
 ): Promise<UsageReportsFixture> {
   const listRequests: Array<{ forceRefresh: boolean; reportIds?: string[] }> = [];
-  const agentRequests: Array<{ agentId: string }> = [];
   const listCounter = createCounter();
-  const agentCounter = createCounter();
   const usageSources = options.usageSources ?? true;
 
   await page.routeWebSocket(daemonWsRoutePattern(), (ws) => {
@@ -142,23 +136,6 @@ export async function installUsageReportsFixture(
         listCounter.increment();
         return;
       }
-      if (request?.type === "agent.resolve_usage_report.request" && typeof requestId === "string") {
-        agentRequests.push({
-          agentId: String(request.agentId),
-        });
-        const reportId = pick(options.agentReportIds ?? [null], agentRequests.length - 1);
-        ws.send(
-          JSON.stringify({
-            type: "session",
-            message: {
-              type: "agent.resolve_usage_report.response",
-              payload: { requestId, reportId },
-            },
-          }),
-        );
-        agentCounter.increment();
-        return;
-      }
       server.send(message);
     });
 
@@ -171,8 +148,6 @@ export async function installUsageReportsFixture(
 
   return {
     listRequests: () => [...listRequests],
-    agentRequests: () => [...agentRequests],
     waitForListRequests: (count) => listCounter.waitFor(count),
-    waitForAgentRequests: (count) => agentCounter.waitFor(count),
   };
 }

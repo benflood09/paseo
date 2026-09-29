@@ -3,8 +3,6 @@ import {
   formatUsageFreshness,
   groupUsageByHost,
   replaceReport,
-  headlineWindow,
-  resolveUsagePill,
   resolveUsageRefresh,
   resolveUsageView,
   type UsageQueryState,
@@ -35,70 +33,6 @@ function entry(input: {
 function ready(data: UsageReportEntry[]): UsageQueryState {
   return { data, error: null, isFetching: false };
 }
-
-describe("resolveUsagePill", () => {
-  it("shows the source icon and the headline window percent", () => {
-    const pill = resolveUsagePill({
-      supportsUsage: true,
-      entry: entry({
-        icon: "<svg/>",
-        windows: [
-          { id: "session", label: "Session", usedPct: 12 },
-          { id: "weekly", label: "Weekly", usedPct: 64.6, headline: true },
-        ],
-      }),
-    });
-
-    expect(pill).toEqual({ icon: "<svg/>", sourceLabel: "Fixture source", text: "65%" });
-  });
-
-  it("derives the headline percent from remaining percent", () => {
-    const pill = resolveUsagePill({
-      supportsUsage: true,
-      entry: entry({
-        windows: [{ id: "daily", label: "Daily", remainingPct: 30, headline: true }],
-      }),
-    });
-
-    expect(pill?.text).toBe("70%");
-  });
-
-  it("shows the plan label when no window is the headline", () => {
-    const pill = resolveUsagePill({
-      supportsUsage: true,
-      entry: entry({
-        planLabel: "Pro",
-        windows: [{ id: "session", label: "Session", usedPct: 40 }],
-      }),
-    });
-
-    expect(pill).toEqual({ icon: null, sourceLabel: "Fixture source", text: "Pro" });
-  });
-
-  it("shows only the icon with neither a headline window nor a plan label", () => {
-    const pill = resolveUsagePill({ supportsUsage: true, entry: entry({}) });
-
-    expect(pill).toEqual({ icon: null, sourceLabel: "Fixture source", text: null });
-  });
-
-  it("is hidden when the agent has no usage report", () => {
-    expect(resolveUsagePill({ supportsUsage: true, entry: null })).toBeNull();
-  });
-
-  it("is hidden on a host without usage sources, whatever data is cached", () => {
-    const cached = entry({ windows: [{ id: "w", label: "W", usedPct: 5, headline: true }] });
-
-    expect(resolveUsagePill({ supportsUsage: false, entry: cached })).toBeNull();
-  });
-});
-
-describe("headlineWindow", () => {
-  it("does not fall back to the first window", () => {
-    expect(headlineWindow(entry({ windows: [{ id: "a", label: "A", usedPct: 1 }] }).report)).toBe(
-      null,
-    );
-  });
-});
 
 describe("resolveUsageView", () => {
   it("asks for a host update when the host lacks usage sources", () => {

@@ -1,41 +1,11 @@
 import { formatCompactTimeAgoAsProse } from "@/utils/time";
 import { usageCopy } from "./copy";
-import type { UsageReport, UsageReportEntry, UsageView, UsageWindow } from "./types";
+import type { UsageReportEntry, UsageView, UsageWindow } from "./types";
 
 export function usedPercent(window: UsageWindow): number | null {
   if (window.usedPct != null) return window.usedPct;
   if (window.remainingPct != null) return 100 - window.remainingPct;
   return null;
-}
-
-/** The window the source marked as its headline. Sources own that choice; there is no fallback. */
-export function headlineWindow(report: UsageReport): UsageWindow | null {
-  return report.windows.find((window) => window.headline === true) ?? null;
-}
-
-export interface UsagePill {
-  icon: string | null;
-  sourceLabel: string;
-  /** Headline percent, else the plan label, else nothing beside the icon. */
-  text: string | null;
-}
-
-export function resolveUsagePill(input: {
-  supportsUsage: boolean;
-  entry: UsageReportEntry | null | undefined;
-}): UsagePill | null {
-  const { supportsUsage, entry } = input;
-  if (!supportsUsage || !entry) return null;
-  const window = headlineWindow(entry.report);
-  const percent = window ? usedPercent(window) : null;
-  return {
-    icon: entry.icon ?? null,
-    sourceLabel: entry.sourceLabel,
-    text:
-      percent != null
-        ? `${Math.round(Math.max(0, Math.min(100, percent)))}%`
-        : (entry.report.planLabel ?? null),
-  };
 }
 
 /** When a report was fetched, from its compact relative time: "Updated 3m ago". */

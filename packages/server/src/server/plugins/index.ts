@@ -28,7 +28,6 @@ import type { PluginProviderMetadata } from "./plugin-process-protocol.js";
 import { readPluginProviderIcon } from "./provider-icon.js";
 import { UsageSourceRegistry } from "./usage-sources/index.js";
 import type { PluginUsageSourceMetadata } from "./plugin-process-protocol.js";
-import type { UsageReference } from "../agent/agent-sdk-types.js";
 
 const BUILTIN_PROVIDER_ID_SET: ReadonlySet<string> = new Set(BUILTIN_PROVIDER_IDS);
 
@@ -144,16 +143,8 @@ export class PluginService {
     return [...this.providers.values()].sort((left, right) => left.id.localeCompare(right.id));
   }
 
-  listUsageReports(options?: {
-    forceRefresh?: boolean;
-    reportIds?: string[];
-    references?: UsageReference[];
-  }) {
+  listUsageReports(options?: { forceRefresh?: boolean; reportIds?: string[] }) {
     return this.usageSources.listReports(options);
-  }
-
-  resolveUsageReference(reference: UsageReference) {
-    return this.usageSources.resolveReference(reference);
   }
 
   listLegacyUsage() {

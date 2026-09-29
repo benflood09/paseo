@@ -13,11 +13,9 @@ import { usageCopy } from "./copy";
 import {
   groupUsageByHost,
   replaceReport,
-  resolveUsagePill,
   resolveUsageRefresh,
   resolveUsageView,
   type UsageHostGroup,
-  type UsagePill,
   type UsageQueryState,
   type UsageRefresh,
 } from "./model";
@@ -29,10 +27,6 @@ const REPORTS_STALE_TIME_MS = 60_000;
 
 function usageReportsQueryKey(serverId: string) {
   return ["usage", "reports", serverId] as const;
-}
-
-function agentUsageQueryKey(serverId: string, agentId: string, model: string | null) {
-  return ["usage", "agent", serverId, agentId, model] as const;
 }
 
 function requireClient(serverId: string) {
@@ -155,44 +149,6 @@ export function useUsageByHost(): {
     [queryClient],
   );
   return { groups, refresh };
-}
-
-/**
- * The usage report for the account an agent is spending. The daemon resolves the
- * report ID, which is re-resolved when the model changes (a new key) and when a
- * turn completes (the query is paused while the agent runs, and its data is always
- * stale, so resuming refetches). The report itself is read from the shared cache.
- */
-export function useAgentUsage(
-  serverId: string,
-  agentId: string,
-): { pill: UsagePill | null; entry: UsageReportEntry | null } {
-  const isConnected = useHostRuntimeIsConnected(serverId);
-  const isSupported = useSessionStore((state) => supportsUsage(state.sessions[serverId]));
-  const { model, isRunning } = useSessionStore(
-    useShallow((state) => {
-      const agent = state.sessions[serverId]?.agents?.get(agentId);
-      return { model: agent?.model ?? null, isRunning: agent?.status === "running" };
-    }),
-  );
-  const identity = useFetchQuery({
-    queryKey: agentUsageQueryKey(serverId, agentId, model),
-    queryFn: async () =>
-      (await requireClient(serverId).resolveAgentUsageReport({ agentId })).reportId,
-    enabled: isConnected && isSupported && !isRunning,
-    dataShape: "value",
-    staleTimeMs: 0,
-  });
-  const reportId = identity.data ?? null;
-  const query = useFetchQuery({
-    queryKey: reportQueryKey(serverId, reportId ?? "none"),
-    queryFn: () => getReport(serverId, reportId!),
-    enabled: isConnected && isSupported && reportId !== null,
-    dataShape: "value",
-    staleTimeMs: REPORTS_STALE_TIME_MS,
-  });
-  const entry = isSupported ? (query.data ?? null) : null;
-  return { pill: resolveUsagePill({ supportsUsage: isSupported, entry }), entry };
 }
 
 /**
