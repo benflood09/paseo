@@ -3,10 +3,13 @@ import type { PluginSidebarSection } from "@/plugins/types";
 
 export type SidebarSection = PluginSidebarSection;
 
-/** Each section's built-in items in their default order. Add project and Settings are fixed. */
+/**
+ * Each section's built-in items in their default order. The footer's Add project row and its
+ * icon row (Hosts, Import session, Help and support, Settings) are fixed and not items.
+ */
 export const BUILTIN_SIDEBAR_ITEM_IDS = {
   header: ["new-workspace", "history", "search", "schedules"],
-  footer: ["usage-summary", "hosts", "import", "help"],
+  footer: ["usage-summary"],
 } as const satisfies Record<SidebarSection, readonly string[]>;
 
 export type BuiltinSidebarItemId<Section extends SidebarSection = SidebarSection> =
@@ -43,9 +46,6 @@ const BUILTIN_LABEL_KEYS: Record<BuiltinSidebarItemId, string> = {
   search: "sidebar.sections.search",
   schedules: "sidebar.sections.schedules",
   "usage-summary": "sidebar.footer.usageSummary",
-  hosts: "sidebar.actions.hosts",
-  import: "importSession.title",
-  help: "sidebar.help.trigger",
 };
 
 export function builtinSidebarNavLabelKey(id: BuiltinSidebarItemId): string {
@@ -63,9 +63,6 @@ const BUILTIN_SHORTCUT_ACTIONS: Record<BuiltinSidebarItemId, string | null> = {
   search: "toggle-command-center",
   schedules: null,
   "usage-summary": null,
-  hosts: null,
-  import: null,
-  help: null,
 };
 
 export function builtinSidebarNavShortcutAction(id: BuiltinSidebarItemId): string | null {

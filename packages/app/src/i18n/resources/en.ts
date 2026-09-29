@@ -2300,7 +2300,7 @@ export const en = {
         footer: {
           title: "Footer",
           description:
-            "Choose which items appear at the bottom of the sidebar and in what order. Add project and Settings always show",
+            "Choose which rows appear at the bottom of the sidebar and in what order. Add project and the icon row always show",
         },
         moveUp: "Move up",
         moveDown: "Move down",

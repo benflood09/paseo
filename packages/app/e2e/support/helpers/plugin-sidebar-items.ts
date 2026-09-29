@@ -14,7 +14,7 @@ export const COMPACT = { width: 390, height: 844 };
 /** A plugin written against the current API: a screen, header and footer items, a command. */
 const SHOWCASE_SOURCE = `import React from "react";
 import { Pressable, Text, View } from "react-native";
-import { SidebarButton, SidebarRow } from "@getpaseo/plugin/client/ui";
+import { SidebarRow } from "@getpaseo/plugin/client/ui";
 
 function DeploysScreen({ theme }) {
   return <View style={{ flex: 1, padding: 24 }}><Text style={{ color: theme.colors.foreground }}>Deploys screen body</Text></View>;
@@ -53,7 +53,7 @@ function SyncDetails({ theme, layout, close, openScreen }) {
 }
 
 function SyncItem({ openPopover }) {
-  return <SidebarButton icon="RefreshCw" onPress={() => openPopover(SyncDetails)} />;
+  return <SidebarRow icon="RefreshCw" onPress={() => openPopover(SyncDetails)} />;
 }
 
 function Broken() {

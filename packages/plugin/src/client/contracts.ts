@@ -66,7 +66,7 @@ export interface PluginSidebarItemProps extends PluginHostProps {
 
 export interface PluginSidebarItemContribution {
   id: string;
-  /** Settings row label, accessibility label, and default label for SidebarRow and SidebarButton. */
+  /** Settings row label, accessibility label, and default label for SidebarRow. */
   title: string;
   Component: ComponentType<PluginSidebarItemProps>;
 }

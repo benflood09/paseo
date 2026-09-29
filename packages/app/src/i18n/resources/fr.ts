@@ -2233,7 +2233,7 @@ export const fr: TranslationResources = {
         footer: {
           title: "Pied",
           description:
-            "Choisissez les éléments affichés en bas de la barre latérale et leur ordre. Ajouter un projet et Paramètres restent toujours visibles",
+            "Choisissez les lignes affichées en bas de la barre latérale et leur ordre. Ajouter un projet et la rangée d’icônes restent toujours visibles",
         },
         moveUp: "Déplacer vers le haut",
         moveDown: "Déplacer vers le bas",

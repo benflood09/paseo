@@ -7,13 +7,10 @@ import {
   ArrowUp,
   Blocks,
   CalendarClock,
-  CircleHelp,
   Gauge,
   History,
-  Import,
   Plus,
   Search,
-  Server,
   type LucideIcon,
 } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -47,9 +44,6 @@ const BUILTIN_ICONS: Record<BuiltinSidebarItemId, LucideIcon> = {
   search: Search,
   schedules: CalendarClock,
   "usage-summary": Gauge,
-  hosts: Server,
-  import: Import,
-  help: CircleHelp,
 };
 
 /** Plugin items register no icon, so every plugin row shares this one. */
@@ -183,7 +177,7 @@ function SidebarItemsCard({ section }: { section: SidebarSection }): ReactElemen
   );
 }
 
-/** Settings > Sidebar: one card per section. Add project and Settings are fixed and not listed. */
+/** Settings > Sidebar: one card per section. The footer's Add project row and icon row are fixed and not listed. */
 export function SidebarNavSection(): ReactElement {
   return (
     <>

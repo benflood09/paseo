@@ -75,14 +75,5 @@ export interface SidebarRowProps {
   /** Right slot. Renders beside the row's pressable, so a button here presses on its own. */
   trailing?: ReactNode;
 }
-export interface SidebarButtonProps {
-  /** A Lucide icon name or a component. */
-  icon: SidebarIcon;
-  /** Tooltip and accessibility label. Defaults to the item's registered title. */
-  label?: string;
-  onPress(): void;
-}
 /** A sidebar navigation row. Render it from a sidebar item's `Component`. */
 export declare const SidebarRow: ComponentType<SidebarRowProps>;
-/** An icon-sized sidebar button. Render it from a sidebar item's `Component`. */
-export declare const SidebarButton: ComponentType<SidebarButtonProps>;

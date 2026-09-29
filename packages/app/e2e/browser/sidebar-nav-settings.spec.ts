@@ -1,6 +1,8 @@
 import { expect, test } from "../support/fixtures";
 import { gotoAppShell } from "../support/helpers/app";
+import { SHOWCASE_PLUGIN_ID, installSidebarPlugins } from "../support/helpers/plugin-sidebar-items";
 import {
+  expectFooterIconRow,
   expectFooterItemHidden,
   expectFooterOrder,
   expectFooterSettingsKeys,
@@ -8,12 +10,12 @@ import {
   expectSidebarNavSettingsOrder,
   expectSidebarNavSettingsRow,
   expectSidebarOrder,
-  expectStoredSidebarFooter,
   expectStoredSidebarNav,
   leaveSettings,
   moveFooterItemUp,
   moveSidebarNavItemUp,
   openSidebarNavSettings,
+  seedSidebarFooterPreferences,
   seedSidebarNavPreferences,
   setFooterItemVisible,
   setSidebarNavItemVisible,
@@ -93,47 +95,6 @@ test.describe("Sidebar items in Appearance settings", () => {
     });
   });
 
-  test("owner reorders and hides footer items; Add project and Settings stay fixed", async ({
-    page,
-  }) => {
-    await gotoAppShell(page);
-
-    await test.step("the Footer card lists the built-in footer items only", async () => {
-      await openSidebarNavSettings(page);
-      await expect(page.getByTestId("sidebar-nav-section-footer-info")).toHaveAccessibleName(
-        "About Footer",
-      );
-      await expectFooterSettingsKeys(page, ["usage-summary", "hosts", "import", "help"]);
-      await leaveSettings(page);
-      await expectFooterOrder(page, ["usage-summary", "hosts", "import", "help"]);
-    });
-
-    await test.step("moving Help up and hiding Import changes the footer", async () => {
-      await openSidebarNavSettings(page);
-      await moveFooterItemUp(page, "help");
-      await moveFooterItemUp(page, "help");
-      await setFooterItemVisible(page, "import", false);
-      await expectFooterSettingsKeys(page, ["usage-summary", "help", "hosts", "import"]);
-      await expectStoredSidebarFooter(page, [
-        { key: "usage-summary", visible: true },
-        { key: "help", visible: true },
-        { key: "hosts", visible: true },
-        { key: "import", visible: false },
-      ]);
-      await leaveSettings(page);
-      await expectFooterItemHidden(page, "import");
-      await expectFooterOrder(page, ["usage-summary", "help", "hosts"]);
-      await expect(page.locator('[data-testid="sidebar-add-project"]:visible')).toBeVisible();
-      await expect(page.locator('[data-testid="sidebar-settings"]:visible')).toBeVisible();
-    });
-
-    await test.step("the footer keeps that shape across a reload", async () => {
-      await page.reload();
-      await expectFooterItemHidden(page, "import");
-      await expectFooterOrder(page, ["usage-summary", "help", "hosts"]);
-    });
-  });
-
   test("renders no top-level items when every one is turned off", async ({ page }) => {
     await seedSidebarNavPreferences(page, [
       { key: "new-workspace", visible: false },
@@ -151,5 +112,66 @@ test.describe("Sidebar items in Appearance settings", () => {
     await expectSidebarItemHidden(page, "history");
     await expectSidebarItemHidden(page, "search");
     await expectSidebarItemHidden(page, "schedules");
+  });
+});
+
+test.describe("Sidebar footer rows in Appearance settings", () => {
+  const syncKey = `plugin:${SHOWCASE_PLUGIN_ID}:sync`;
+  const brokenKey = `plugin:${SHOWCASE_PLUGIN_ID}:broken`;
+  let cleanup: () => Promise<void>;
+
+  test.beforeEach(async () => {
+    ({ cleanup } = await installSidebarPlugins());
+  });
+
+  test.afterEach(async () => {
+    await cleanup();
+  });
+
+  test("owner reorders and hides footer rows; the icon row stays fixed", async ({ page }) => {
+    test.setTimeout(120_000);
+    // Keys for the footer buttons that used to be configurable are ignored.
+    await seedSidebarFooterPreferences(page, [
+      { key: "help", visible: false },
+      { key: "usage", visible: false },
+      { key: "hosts", visible: false },
+      { key: "import", visible: false },
+    ]);
+    await gotoAppShell(page);
+
+    await test.step("the Footer card lists only the footer rows", async () => {
+      await openSidebarNavSettings(page);
+      await expect(page.getByTestId("sidebar-nav-section-footer-info")).toHaveAccessibleName(
+        "About Footer",
+      );
+      await expectFooterSettingsKeys(page, ["usage-summary", syncKey, brokenKey]);
+      await leaveSettings(page);
+      await expectFooterOrder(page, ["usage-summary", syncKey]);
+      await expectFooterIconRow(page);
+    });
+
+    await test.step("moving Sync up and hiding the usage summary changes the rows", async () => {
+      await openSidebarNavSettings(page);
+      await moveFooterItemUp(page, syncKey);
+      await setFooterItemVisible(page, "usage-summary", false);
+      await expectFooterSettingsKeys(page, [syncKey, "usage-summary", brokenKey]);
+      await leaveSettings(page);
+      await expectFooterItemHidden(page, "usage-summary");
+      await expect(
+        page.locator(`[data-testid="plugin-sidebar-footer-${SHOWCASE_PLUGIN_ID}-sync"]:visible`),
+      ).toBeVisible();
+      await expectFooterIconRow(page);
+    });
+
+    await test.step("the rows keep that shape across a reload", async () => {
+      await page.reload();
+      await expect(
+        page.locator(`[data-testid="plugin-sidebar-footer-${SHOWCASE_PLUGIN_ID}-sync"]:visible`),
+      ).toBeVisible({ timeout: 30_000 });
+      await expectFooterItemHidden(page, "usage-summary");
+      await expectFooterIconRow(page);
+      await openSidebarNavSettings(page);
+      await expectFooterSettingsKeys(page, [syncKey, "usage-summary", brokenKey]);
+    });
   });
 });

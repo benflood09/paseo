@@ -1,5 +1,5 @@
 import path from "node:path";
-import type { Page } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { gotoWorkspace } from "../support/helpers/launcher";
 import {
@@ -23,12 +23,38 @@ import { getServerId } from "../support/helpers/server-id";
 const APP_SETTINGS_KEY = "@paseo:app-settings";
 
 /** Set PASEO_QA_SCREENSHOT_DIR to keep QA screenshots of each state. */
-async function qaScreenshot(page: Page, name: string) {
+async function qaScreenshot(page: Page, name: string, area?: Locator) {
   const directory = process.env.PASEO_QA_SCREENSHOT_DIR;
   if (!directory) return;
   // Let popover, sheet and drawer animations settle so the image shows the final state.
   await page.waitForTimeout(600);
-  await page.screenshot({ path: path.join(directory, `phase2-${name}.png`) });
+  // Expo's fast-refresh indicator sits over the footer's Hosts icon.
+  await page.addStyleTag({ content: ".__expo_fast_refresh { display: none !important; }" });
+  const file = path.join(directory, `${name}.png`);
+  if (area) await area.screenshot({ path: file });
+  else await page.screenshot({ path: file });
+}
+
+/** Footer rows sit between the fixed Add project row and the fixed icon row, full width. */
+async function expectFooterRow(page: Page, row: Locator) {
+  // Polled: on compact the drawer is still sliding in when the row first shows.
+  await expect
+    .poll(async () => {
+      const addProject = (await visibleTestId(page, "sidebar-add-project").boundingBox())!;
+      const hosts = (await visibleTestId(page, "sidebar-hosts-trigger").boundingBox())!;
+      const box = (await row.boundingBox())!;
+      return {
+        belowAddProject: box.y >= addProject.y + addProject.height,
+        aboveIconRow: box.y + box.height <= hosts.y,
+        alignedLeft: Math.abs(box.x - addProject.x) < 1,
+        fullWidth: Math.abs(box.width - addProject.width) < 1,
+      };
+    })
+    .toEqual({ belowAddProject: true, aboveIconRow: true, alignedLeft: true, fullWidth: true });
+}
+
+function sidebarFooter(page: Page): Locator {
+  return visibleTestId(page, "sidebar-add-project").locator("xpath=..");
 }
 
 test.describe("Plugin sidebar items", () => {
@@ -75,7 +101,7 @@ test.describe("Plugin sidebar items", () => {
       await expect(page).toHaveURL(new RegExp(`/plugin/${SHOWCASE_PLUGIN_ID}/surface/deploys`));
       await expect(page.getByText("Deploys screen body", { exact: true })).toBeVisible();
       await expectRowActive(row, true);
-      await qaScreenshot(page, "desktop-sidebar-screen");
+      await qaScreenshot(page, "phase2-desktop-sidebar-screen");
       await closeScreen(page);
       await expectRowActive(row, false);
     });
@@ -87,7 +113,14 @@ test.describe("Plugin sidebar items", () => {
       await expect(page.getByText("Deploys screen body", { exact: true })).toHaveCount(0);
     });
 
-    await test.step("the footer button opens a popover anchored to it", async () => {
+    await test.step("the footer row renders as a row between Add project and the icon row", async () => {
+      await expect(sync).toHaveAccessibleName("Sync");
+      await expectFooterRow(page, sync);
+      await expect(visibleTestId(page, "sidebar-usage")).toBeVisible();
+      await qaScreenshot(page, "phase5-desktop-footer", sidebarFooter(page));
+    });
+
+    await test.step("the footer row opens a popover anchored to it", async () => {
       await sync.click();
       const popover = await popoverBox(page);
       const button = (await sync.boundingBox())!;
@@ -95,7 +128,7 @@ test.describe("Plugin sidebar items", () => {
       expect(popover.y + popover.height).toBeLessThanOrEqual(button.y);
       expect(button.y - popover.y).toBeLessThan(300);
       expect(Math.abs(popover.x - button.x)).toBeLessThan(80);
-      await qaScreenshot(page, "desktop-popover");
+      await qaScreenshot(page, "phase2-desktop-popover");
       await page.getByRole("button", { name: "Open deploys from popover", exact: true }).click();
       await expect(page.getByText("Deploys screen body", { exact: true })).toBeVisible();
       await expect(page.getByText("Sync details", { exact: true })).toHaveCount(0);
@@ -114,13 +147,15 @@ test.describe("Plugin sidebar items", () => {
       await page.getByRole("button", { name: "Open menu", exact: true }).first().click();
       const compactSync = footerItem(page, SHOWCASE_PLUGIN_ID, "sync");
       await expect(compactSync).toBeInViewport();
+      await expectFooterRow(page, compactSync);
       await expect(headerRow(page, SHOWCASE_PLUGIN_ID, "deploys")).toBeInViewport();
-      await qaScreenshot(page, "compact-sidebar");
+      await qaScreenshot(page, "phase2-compact-sidebar");
+      await qaScreenshot(page, "phase5-compact-footer", sidebarFooter(page));
       await compactSync.click();
       await expect(page.getByText("Presentation: compact", { exact: true })).toBeVisible();
       const sheet = await popoverBox(page);
       expect(sheet.y).toBeGreaterThan(COMPACT.height / 2);
-      await qaScreenshot(page, "compact-sheet");
+      await qaScreenshot(page, "phase2-compact-sheet");
       await page.getByRole("button", { name: "Close sync details", exact: true }).click();
       await expect(page.getByText("Sync details", { exact: true })).toHaveCount(0);
     });
@@ -191,10 +226,15 @@ test.describe("Plugin sidebar items", () => {
       const markup = await legacyIcon.innerHTML();
       expect(await showcaseIcon.innerHTML()).toBe(markup);
       expect(await footerIcon.innerHTML()).toBe(markup);
-      await qaScreenshot(page, "desktop-settings-sidebar");
+      await qaScreenshot(page, "phase2-desktop-settings-sidebar");
+      await qaScreenshot(
+        page,
+        "phase5-settings-sidebar-footer",
+        page.getByTestId("sidebar-nav-section-footer"),
+      );
       await page.setViewportSize(COMPACT);
       await expect(page.getByTestId("sidebar-nav-section-footer").first()).toBeAttached();
-      await qaScreenshot(page, "compact-settings-sidebar");
+      await qaScreenshot(page, "phase2-compact-settings-sidebar");
     });
   });
 });

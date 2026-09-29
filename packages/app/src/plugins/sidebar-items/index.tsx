@@ -36,7 +36,7 @@ import type { PluginSidebarSection } from "../types";
 import { SidebarItemFrameContext, type SidebarItemFrame } from "./frame";
 import { resolvePluginPlatform } from "../platform";
 
-export { SidebarButton, SidebarRow } from "./kit";
+export { SidebarRow } from "./kit";
 
 type PopoverContent = ComponentType<PluginPopoverProps>;
 

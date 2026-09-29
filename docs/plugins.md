@@ -411,10 +411,11 @@ lives in `packages/app/src/plugins/sidebar-items/`; `packages/app/src/sidebar-na
 one section's order from built-ins, plugin groups, and the section's preference
 (`sidebarNavItems` or `sidebarFooterItems`).
 
-- The item's `Component` renders directly in the section, with no wrapper, so a footer
-  `SidebarButton` joins the wrapping icon row and a full-width component takes its own line.
+- The item's `Component` renders directly in the section, with no wrapper. Footer items are rows
+  between Add project and the footer's icon row. The icon row (Hosts, Import session, Help and
+  support, Settings) is fixed app code, not a contribution slot, so the kit has no icon button.
 - `openPopover` opens through the same `PluginPopoverSurface` as header buttons
-  (`plugins/popover.tsx`). The kit components attach themselves as the menu anchor. An item that
+  (`plugins/popover.tsx`). `SidebarRow` attaches itself as the menu anchor. An item that
   renders no kit component anchors to its section container.
 - `SidebarRow.trailing` is a sibling of the row's `Pressable`; web cannot nest buttons.
 - `addSurface`, `openSurface`, and `addSidebarItem` are undocumented aliases, tagged

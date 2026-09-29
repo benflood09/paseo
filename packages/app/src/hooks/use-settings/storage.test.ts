@@ -245,9 +245,10 @@ describe("loadAppSettingsFromStorage", () => {
       storage: createInMemoryKeyValueStorage({
         [APP_SETTINGS_KEY]: JSON.stringify({
           sidebarFooterItems: [
+            // Footer buttons that were configurable once; the sidebar model skips them.
             { key: "help", visible: false },
-            // The retired Usage footer button; the sidebar model skips it.
             { key: "usage", visible: true },
+            { key: "usage-summary", visible: false },
             { key: "plugin:sync:status", visible: true },
           ],
         }),
@@ -259,6 +260,7 @@ describe("loadAppSettingsFromStorage", () => {
     expect(result.sidebarFooterItems).toEqual([
       { key: "help", visible: false },
       { key: "usage", visible: true },
+      { key: "usage-summary", visible: false },
       { key: "plugin:sync:status", visible: true },
     ]);
   });

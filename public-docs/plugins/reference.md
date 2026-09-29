@@ -747,11 +747,11 @@ Paseo owns the route, header, close action, host picker, error boundary, and que
 
 ### Sidebar items
 
-`addSidebarHeaderItem` adds an item to the list at the top of the sidebar. `addSidebarFooterItem`
-adds one to the footer row below **Add project**. Both take `{ id, title, Component }`. `title`
-labels the item in Settings > Sidebar, where users reorder and hide items, and is the default
-label and accessibility label of `SidebarRow` and `SidebarButton`. Settings shows a generic plugin
-icon for every plugin item.
+`addSidebarHeaderItem` adds a row to the list at the top of the sidebar. `addSidebarFooterItem`
+adds a row to the footer, between **Add project** and the footer's icon row. The icon row is fixed;
+plugins can't add to it. Both take `{ id, title, Component }`. `title` labels the item in
+Settings > Sidebar, where users reorder and hide items, and is the default label and accessibility
+label of `SidebarRow`. Settings shows a generic plugin icon for every plugin item.
 
 `Component` receives `PluginSidebarItemProps`:
 
@@ -767,17 +767,15 @@ closes the popover.
 
 Render the item with the sidebar kit from `@getpaseo/plugin/client/ui`:
 
-| Component       | Props and behavior                                                                                                                                                                                                      |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SidebarRow`    | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. |
-| `SidebarButton` | Required `icon`, `onPress`; optional `label` for the tooltip. An icon-sized button for the footer row.                                                                                                                  |
+| Component    | Props and behavior                                                                                                                                                                                                      |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SidebarRow` | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. |
 
-Popovers anchor to the kit component the item renders. The footer wraps: a `SidebarButton` sits
-in the icon row, and a full-width component takes its own line.
+Popovers anchor to the `SidebarRow` the item renders.
 
 ```tsx
 import type { PluginSidebarItemProps, PluginPopoverProps } from "@getpaseo/plugin/client";
-import { SidebarButton } from "@getpaseo/plugin/client/ui";
+import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Pressable, Text } from "react-native";
 
 function SyncDetails({ theme, close, openScreen }: PluginPopoverProps) {
@@ -789,7 +787,7 @@ function SyncDetails({ theme, close, openScreen }: PluginPopoverProps) {
 }
 
 function SyncItem({ openPopover }: PluginSidebarItemProps) {
-  return <SidebarButton icon="RefreshCw" onPress={() => openPopover(SyncDetails)} />;
+  return <SidebarRow icon="RefreshCw" onPress={() => openPopover(SyncDetails)} />;
 }
 
 client.addSidebarFooterItem({ id: "sync", title: "Sync", Component: SyncItem });
