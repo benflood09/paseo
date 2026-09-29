@@ -52,6 +52,8 @@ import { openHostOverview } from "@/navigation/settings-navigation";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
+import { SidebarThreadList } from "./sidebar-thread-list";
+import { useWorkspaceOrganizationStore } from "@/stores/workspace-organization-store";
 
 type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
 
@@ -532,6 +534,7 @@ function MobileSidebar({
   closeSidebar,
 }: MobileSidebarProps) {
   const hasActiveHostFilter = useSidebarViewStore((state) => state.hostFilters.length > 0);
+  const isThreadFirst = useWorkspaceOrganizationStore((state) => state.mode === "thread-first");
   const { gesture: closeGesture, gestureRef: closeGestureRef } = useCloseAgentListGesture();
 
   const handleWorkspacePress = useCallback(() => {
@@ -576,9 +579,16 @@ function MobileSidebar({
           </Pressable>
         </WindowChromeSafeArea>
 
-        {isInitialLoad && !hasActiveHostFilter ? (
-          <SidebarAgentListSkeleton />
-        ) : (
+        {isInitialLoad && !hasActiveHostFilter && <SidebarAgentListSkeleton />}
+        {!(isInitialLoad && !hasActiveHostFilter) && isThreadFirst && (
+          <SidebarThreadList
+            projects={projects}
+            onThreadPress={handleWorkspacePress}
+            header={workspacesSectionHeaderElement}
+            hasActiveProjectFilter={hasActiveProjectFilter}
+          />
+        )}
+        {!(isInitialLoad && !hasActiveHostFilter) && !isThreadFirst && (
           <SidebarWorkspaceList
             collapsedProjectKeys={collapsedProjectKeys}
             onToggleProjectCollapsed={toggleProjectCollapsed}
@@ -642,6 +652,7 @@ function DesktopSidebar({
   insetsTop,
   active,
 }: DesktopSidebarProps) {
+  const isThreadFirst = useWorkspaceOrganizationStore((state) => state.mode === "thread-first");
   const ownsTopLeft = useOwnsWindowChromeCorner("top-left");
   const hasActiveHostFilter = useSidebarViewStore((state) => state.hostFilters.length > 0);
   const sidebarWidth = usePanelStore((state) => state.sidebarWidth);
@@ -754,9 +765,15 @@ function DesktopSidebar({
           <SidebarNavRows style={sidebarHeaderGroupStyle} />
         </View>
 
-        {isInitialLoad && !hasActiveHostFilter ? (
-          <SidebarAgentListSkeleton />
-        ) : (
+        {isInitialLoad && !hasActiveHostFilter && <SidebarAgentListSkeleton />}
+        {!(isInitialLoad && !hasActiveHostFilter) && isThreadFirst && (
+          <SidebarThreadList
+            projects={projects}
+            header={workspacesSectionHeaderElement}
+            hasActiveProjectFilter={hasActiveProjectFilter}
+          />
+        )}
+        {!(isInitialLoad && !hasActiveHostFilter) && !isThreadFirst && (
           <SidebarWorkspaceList
             collapsedProjectKeys={collapsedProjectKeys}
             onToggleProjectCollapsed={toggleProjectCollapsed}
@@ -801,9 +818,10 @@ function DesktopSidebar({
 }
 
 function WorkspacesSectionHeader() {
+  const isThreadFirst = useWorkspaceOrganizationStore((state) => state.mode === "thread-first");
   return (
     <View style={styles.workspacesSectionHeader}>
-      <Text style={styles.workspacesSectionTitle}>Workspaces</Text>
+      <Text style={styles.workspacesSectionTitle}>{isThreadFirst ? "Threads" : "Workspaces"}</Text>
       <View style={styles.workspacesSectionActions}>
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>

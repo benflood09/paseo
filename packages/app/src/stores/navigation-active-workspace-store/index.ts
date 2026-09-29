@@ -18,28 +18,34 @@ import { useSessionStore } from "@/stores/session-store";
 import { useWorkspaceLayoutStore } from "@/stores/workspace-layout-store";
 import { stripHostWorkspaceRouteEchoSearchFromBrowserUrlAfterCommit } from "@/utils/host-route-browser";
 import { navigateToHostWorkspaceRoute } from "@/navigation/workspace-route-navigation";
+import { resolveTabScopeKey } from "@/utils/workspace-navigation";
 
 export type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
 export type { NavigateToWorkspaceInput } from "./navigation";
 
 const lastWorkspaceSelectionStorage: LastWorkspaceSelectionStorage = {
   read: () => AsyncStorage.getItem(LAST_WORKSPACE_SELECTION_STORAGE_KEY),
-  write: (value) => AsyncStorage.setItem(LAST_WORKSPACE_SELECTION_STORAGE_KEY, value),
+  write: (value) =>
+    AsyncStorage.setItem(LAST_WORKSPACE_SELECTION_STORAGE_KEY, value),
   clear: () => AsyncStorage.removeItem(LAST_WORKSPACE_SELECTION_STORAGE_KEY),
 };
 
 const lastWorkspaceSelectionStore = createLastWorkspaceSelectionStore(
-  lastWorkspaceSelectionStorage,
+  lastWorkspaceSelectionStorage
 );
 
 function navigateDeps(): NavigateToWorkspaceDeps {
   return {
-    getSessionWorkspaces: (serverId) => useSessionStore.getState().sessions[serverId]?.workspaces,
+    getSessionWorkspaces: (serverId) =>
+      useSessionStore.getState().sessions[serverId]?.workspaces,
     getSessionAgents: (serverId) =>
       useSessionStore.getState().sessions[serverId]?.agents.values() ?? [],
-    isWorkspaceLayoutHydrated: () => useWorkspaceLayoutStore.persist.hasHydrated(),
+    isWorkspaceLayoutHydrated: () =>
+      useWorkspaceLayoutStore.persist.hasHydrated(),
+    resolveTabScopeKey,
     openTab: (input) => useWorkspaceLayoutStore.getState().openTab(input),
-    rememberLastWorkspace: (selection) => lastWorkspaceSelectionStore.remember(selection),
+    rememberLastWorkspace: (selection) =>
+      lastWorkspaceSelectionStore.remember(selection),
     navigateToRoute: (route) => {
       navigateToHostWorkspaceRoute(route);
       stripHostWorkspaceRouteEchoSearchFromBrowserUrlAfterCommit();
@@ -75,7 +81,10 @@ export function useActiveWorkspaceSelection(): ActiveWorkspaceSelection | null {
     serverId?: string | string[];
     workspaceId?: string | string[];
   }>();
-  const selection = parseActiveWorkspaceSelection({ pathname: usePathname(), params });
+  const selection = parseActiveWorkspaceSelection({
+    pathname: usePathname(),
+    params,
+  });
   const serverId = selection?.serverId ?? null;
   const workspaceId = selection?.workspaceId ?? null;
   useEffect(() => {
@@ -91,7 +100,7 @@ export function useLastWorkspaceSelection(): ActiveWorkspaceSelection | null {
   return useSyncExternalStore(
     lastWorkspaceSelectionStore.subscribe,
     getLastWorkspaceSelection,
-    getLastWorkspaceSelection,
+    getLastWorkspaceSelection
   );
 }
 
@@ -99,7 +108,7 @@ export function useIsLastWorkspaceSelectionHydrated(): boolean {
   return useSyncExternalStore(
     lastWorkspaceSelectionStore.subscribe,
     getIsLastWorkspaceSelectionHydrated,
-    getIsLastWorkspaceSelectionHydrated,
+    getIsLastWorkspaceSelectionHydrated
   );
 }
 

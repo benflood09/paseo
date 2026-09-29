@@ -38,7 +38,7 @@ function createFakeDeps(overrides: Partial<NavigateToWorkspaceDeps> = {}) {
 
 function createLastSelectionDeps(
   initial: ActiveWorkspaceSelection | null,
-  overrides: Partial<NavigateToWorkspaceDeps> = {},
+  overrides: Partial<NavigateToWorkspaceDeps> = {}
 ): {
   deps: NavigateToLastWorkspaceDeps;
   navigations: string[];
@@ -60,6 +60,37 @@ function createLastSelectionDeps(
 }
 
 describe("workspace navigation", () => {
+  it("opens a sidebar thread in the project layout used by thread-first mode", () => {
+    const workspace = {
+      id: "workspace-a",
+      workspaceDirectory: "/repo/workspace-a",
+    } as WorkspaceDescriptor;
+    const { deps, openedTabs, navigations } = createFakeDeps({
+      getSessionWorkspaces: () => new Map([[workspace.id, workspace]]),
+      resolveTabScopeKey: () => "server-1:project:repo",
+    });
+    navigateToWorkspace(
+      {
+        serverId: "server-1",
+        workspaceId: "workspace-a",
+        target: { kind: "agent", agentId: "agent-1" },
+        pin: true,
+      },
+      deps
+    );
+    expect(openedTabs).toEqual([
+      {
+        workspaceKey: "server-1:project:repo",
+        target: {
+          kind: "agent",
+          agentId: "agent-1",
+          workspaceId: "workspace-a",
+        },
+        pin: true,
+      },
+    ]);
+    expect(navigations).toEqual(["/h/server-1/workspace/workspace-a"]);
+  });
   it("reports when no last workspace is known", () => {
     const { deps } = createLastSelectionDeps(null);
 
@@ -69,10 +100,15 @@ describe("workspace navigation", () => {
   it("navigates to a workspace route and remembers the selection", () => {
     const { deps, navigations, remembered } = createFakeDeps();
 
-    navigateToWorkspace({ serverId: "server-1", workspaceId: "workspace-a" }, deps);
+    navigateToWorkspace(
+      { serverId: "server-1", workspaceId: "workspace-a" },
+      deps
+    );
 
     expect(navigations).toEqual(["/h/server-1/workspace/workspace-a"]);
-    expect(remembered).toEqual([{ serverId: "server-1", workspaceId: "workspace-a" }]);
+    expect(remembered).toEqual([
+      { serverId: "server-1", workspaceId: "workspace-a" },
+    ]);
   });
 
   it("focuses the attention agent's tab when a workspace has one", () => {
@@ -92,7 +128,10 @@ describe("workspace navigation", () => {
       getSessionAgents: () => [agent],
     });
 
-    navigateToWorkspace({ serverId: "server-1", workspaceId: "workspace-a" }, deps);
+    navigateToWorkspace(
+      { serverId: "server-1", workspaceId: "workspace-a" },
+      deps
+    );
 
     expect(openedTabs).toEqual([
       {
@@ -126,7 +165,7 @@ describe("workspace navigation", () => {
         workspaceId: "workspace-a",
         target: { kind: "draft", draftId: "draft-1" },
       },
-      deps,
+      deps
     );
 
     expect(openedTabs).toEqual([
@@ -149,11 +188,13 @@ describe("workspace navigation", () => {
         workspaceId: "workspace-a",
         target: { kind: "agent", agentId: "agent-1" },
       },
-      deps,
+      deps
     );
 
     expect(openedTabs).toEqual([]);
-    expect(navigations).toEqual(["/h/server-1/workspace/workspace-a?open=agent%3Aagent-1"]);
+    expect(navigations).toEqual([
+      "/h/server-1/workspace/workspace-a?open=agent%3Aagent-1",
+    ]);
   });
 
   it("defers an agent tab until persisted workspace layout has hydrated", () => {
@@ -173,11 +214,13 @@ describe("workspace navigation", () => {
         target: { kind: "agent", agentId: "agent-1" },
         pin: true,
       },
-      deps,
+      deps
     );
 
     expect(openedTabs).toEqual([]);
-    expect(navigations).toEqual(["/h/server-1/workspace/workspace-a?open=agent%3Aagent-1"]);
+    expect(navigations).toEqual([
+      "/h/server-1/workspace/workspace-a?open=agent%3Aagent-1",
+    ]);
   });
 
   it("reads the active workspace from the current route", () => {
@@ -186,7 +229,10 @@ describe("workspace navigation", () => {
       params: {},
     });
 
-    expect(selection).toEqual({ serverId: "server-1", workspaceId: "workspace-a" });
+    expect(selection).toEqual({
+      serverId: "server-1",
+      workspaceId: "workspace-a",
+    });
   });
 
   it("falls back to workspace route params during cold route mount", () => {

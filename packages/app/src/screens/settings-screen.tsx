@@ -82,6 +82,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { CommunityLinks } from "@/components/community-links";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { WORKSPACE_ORGANIZATION_MODE_OPTIONS, useWorkspaceOrganizationStore } from "@/stores/workspace-organization-store";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { DesktopPermissionsSection } from "@/desktop/components/desktop-permissions-section";
 import { DesktopNotificationsSection } from "@/desktop/components/desktop-notifications-section";
@@ -326,6 +327,8 @@ function LanguageMenuItem({ value, activeLocale, selected, onChange }: LanguageM
 
 function GeneralSection({ settings, handleLanguageChange }: GeneralSectionProps) {
   const { t, i18n } = useTranslation();
+  const workspaceOrganizationMode = useWorkspaceOrganizationStore((state) => state.mode);
+  const setWorkspaceOrganizationMode = useWorkspaceOrganizationStore((state) => state.setMode);
   const activeLocale = getActiveLocale(i18n.language);
   const selectedLanguageOption = LANGUAGE_OPTIONS.find(
     (option) => option.value === settings.language,
@@ -340,6 +343,19 @@ function GeneralSection({ settings, handleLanguageChange }: GeneralSectionProps)
   return (
     <SettingsSection title={t("settings.general.title")}>
       <View style={settingsStyles.card}>
+        <View style={settingsStyles.row}>
+          <View style={settingsStyles.rowContent}>
+            <Text style={settingsStyles.rowTitle}>Sidebar organization</Text>
+            <Text style={settingsStyles.rowHint}>Show workspaces or threads under each project</Text>
+          </View>
+          <SegmentedControl
+            testID="settings-sidebar-organization"
+            size="sm"
+            value={workspaceOrganizationMode}
+            onValueChange={setWorkspaceOrganizationMode}
+            options={WORKSPACE_ORGANIZATION_MODE_OPTIONS}
+          />
+        </View>
         <View style={settingsStyles.row}>
           <View style={settingsStyles.rowContent}>
             <Text style={settingsStyles.rowTitle}>{t("settings.general.language.label")}</Text>
