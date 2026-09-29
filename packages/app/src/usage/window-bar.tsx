@@ -60,7 +60,7 @@ export function UsageWindowBar({
 
   const accessibilityState = useMemo(() => ({ checked: pinned }), [pinned]);
 
-  // The whole row pins the window to the sidebar summary. Pinned or not, it keeps the same
+  // The whole row pins the window to the sidebar Usage item. Pinned or not, it keeps the same
   // padding so toggling only changes the background.
   return (
     <Pressable

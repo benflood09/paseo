@@ -80,8 +80,8 @@ export interface UsageHost {
   supportsUsage: boolean;
 }
 
-/** The host the sidebar summary reads: the active workspace's, else the first that reports usage. */
-export function resolveSummaryHostId(
+/** The host the sidebar Usage item reads: the active workspace's, else the first that reports usage. */
+export function resolveSidebarUsageHostId(
   activeServerId: string | null,
   hosts: readonly UsageHost[],
 ): string | null {

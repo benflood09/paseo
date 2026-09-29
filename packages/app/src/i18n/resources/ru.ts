@@ -1164,7 +1164,7 @@ export const ru: TranslationResources = {
       closeSidebar: "Закрыть боковую панель",
     },
     footer: {
-      usageSummary: "Сводка использования",
+      usage: "Использование",
     },
     help: {
       trigger: "Помощь и поддержка",

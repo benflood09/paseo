@@ -1182,7 +1182,7 @@ export const es: TranslationResources = {
       closeSidebar: "Cerrar barra lateral",
     },
     footer: {
-      usageSummary: "Resumen de uso",
+      usage: "Uso",
     },
     help: {
       trigger: "Ayuda y soporte",

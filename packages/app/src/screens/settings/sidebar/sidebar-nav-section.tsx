@@ -43,7 +43,7 @@ const BUILTIN_ICONS: Record<BuiltinSidebarItemId, LucideIcon> = {
   history: History,
   search: Search,
   schedules: CalendarClock,
-  "usage-summary": Gauge,
+  usage: Gauge,
 };
 
 /** Plugin items register no icon, so every plugin row shares this one. */

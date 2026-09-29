@@ -270,7 +270,7 @@ describe("footer section", () => {
   const sync = group("sync", "status");
   const syncKey = pluginSidebarNavKey(sync);
 
-  it("resolves the usage summary first, then plugin rows", () => {
+  it("resolves the Usage item first, then plugin rows", () => {
     const items = resolveSidebarNavItems({
       section: "footer",
       pluginGroups: [sync],
@@ -278,7 +278,7 @@ describe("footer section", () => {
     });
 
     expect(summarize(items)).toEqual([
-      { key: "usage-summary", visible: true },
+      { key: "usage", visible: true },
       { key: syncKey, visible: true },
     ]);
   });
@@ -290,10 +290,10 @@ describe("footer section", () => {
       preferences: [{ key: "history", visible: false }],
     });
 
-    expect(summarize(items)).toEqual([{ key: "usage-summary", visible: true }]);
+    expect(summarize(items)).toEqual([{ key: "usage", visible: true }]);
   });
 
-  it("ignores the footer buttons that used to be configurable", () => {
+  it("ignores the footer icon buttons, which are fixed and not items", () => {
     const items = resolveSidebarNavItems({
       section: "footer",
       pluginGroups: [sync],
@@ -301,15 +301,14 @@ describe("footer section", () => {
         { key: "hosts", visible: false },
         { key: "import", visible: false },
         { key: "help", visible: false },
-        { key: "usage", visible: true },
         { key: syncKey, visible: true },
-        { key: "usage-summary", visible: false },
+        { key: "usage", visible: false },
       ],
     });
 
     expect(summarize(items)).toEqual([
       { key: syncKey, visible: true },
-      { key: "usage-summary", visible: false },
+      { key: "usage", visible: false },
     ]);
   });
 
@@ -329,7 +328,7 @@ describe("footer section", () => {
         pluginGroups: [sync],
         preferences: moved,
       }),
-      key: "usage-summary",
+      key: "usage",
       visible: false,
       previous: moved,
     });
@@ -337,7 +336,7 @@ describe("footer section", () => {
     expect(hidden).toEqual([
       notesPreference,
       { key: syncKey, visible: true },
-      { key: "usage-summary", visible: false },
+      { key: "usage", visible: false },
     ]);
   });
 });

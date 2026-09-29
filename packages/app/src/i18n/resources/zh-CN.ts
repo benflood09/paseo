@@ -1138,7 +1138,7 @@ export const zhCN: TranslationResources = {
       closeSidebar: "关闭侧边栏",
     },
     footer: {
-      usageSummary: "用量摘要",
+      usage: "使用情况",
     },
     help: {
       trigger: "帮助与支持",

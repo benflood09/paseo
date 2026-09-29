@@ -1146,7 +1146,7 @@ export const ar: TranslationResources = {
       closeSidebar: "إغلاق الشريط الجانبي",
     },
     footer: {
-      usageSummary: "ملخص الاستخدام",
+      usage: "الاستخدام",
     },
     help: {
       trigger: "المساعدة والدعم",

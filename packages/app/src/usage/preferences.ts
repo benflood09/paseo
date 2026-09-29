@@ -3,7 +3,7 @@ import { z } from "zod";
 /** Whether percentages read as the share used or the share left. */
 export type UsageDisplayAs = "used" | "remaining";
 
-/** A window the user pinned to the sidebar summary. It matches every account of the source. */
+/** A window the user pinned to the sidebar Usage item. It matches every account of the source. */
 export interface UsagePin {
   sourceId: string;
   windowId: string;
@@ -32,7 +32,7 @@ export function isUsagePinned(preferences: UsagePreferences, pin: UsagePin): boo
   return preferences.pinned.some((pinned) => samePin(pinned, pin));
 }
 
-/** Unpins a pinned window; pins any other at the end, so the summary grows to the right. */
+/** Unpins a pinned window; pins any other at the end, so the Usage item grows to the right. */
 export function toggleUsagePin(preferences: UsagePreferences, pin: UsagePin): UsagePreferences {
   const pinned = isUsagePinned(preferences, pin)
     ? preferences.pinned.filter((existing) => !samePin(existing, pin))

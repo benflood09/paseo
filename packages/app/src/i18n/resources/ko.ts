@@ -1153,7 +1153,7 @@ export const ko: TranslationResources = {
       closeSidebar: "사이드바 닫기",
     },
     footer: {
-      usageSummary: "사용량 요약",
+      usage: "사용량",
     },
     help: {
       trigger: "도움말 및 지원",

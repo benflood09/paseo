@@ -19,5 +19,4 @@ export const usageCopy = {
   host: "Usage host",
   displayUsed: "Used",
   displayRemaining: "Remaining",
-  summary: "Usage summary",
 } as const;

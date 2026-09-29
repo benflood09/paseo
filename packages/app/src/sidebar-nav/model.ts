@@ -9,7 +9,7 @@ export type SidebarSection = PluginSidebarSection;
  */
 export const BUILTIN_SIDEBAR_ITEM_IDS = {
   header: ["new-workspace", "history", "search", "schedules"],
-  footer: ["usage-summary"],
+  footer: ["usage"],
 } as const satisfies Record<SidebarSection, readonly string[]>;
 
 export type BuiltinSidebarItemId<Section extends SidebarSection = SidebarSection> =
@@ -45,7 +45,7 @@ const BUILTIN_LABEL_KEYS: Record<BuiltinSidebarItemId, string> = {
   history: "sidebar.sections.sessions",
   search: "sidebar.sections.search",
   schedules: "sidebar.sections.schedules",
-  "usage-summary": "sidebar.footer.usageSummary",
+  usage: "sidebar.footer.usage",
 };
 
 export function builtinSidebarNavLabelKey(id: BuiltinSidebarItemId): string {
@@ -62,7 +62,7 @@ const BUILTIN_SHORTCUT_ACTIONS: Record<BuiltinSidebarItemId, string | null> = {
   history: null,
   search: "toggle-command-center",
   schedules: null,
-  "usage-summary": null,
+  usage: null,
 };
 
 export function builtinSidebarNavShortcutAction(id: BuiltinSidebarItemId): string | null {

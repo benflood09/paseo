@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { UsagePreferences } from "./preferences";
-import { resolveUsageSummary } from "./summary";
+import { resolvePinnedUsage } from "./pinned";
 import type { UsageReportEntry, UsageWindow } from "./types";
 
 function report(input: {
@@ -43,9 +43,9 @@ function preferences(
   return { displayAs, pinned };
 }
 
-describe("resolveUsageSummary", () => {
+describe("resolvePinnedUsage", () => {
   it("shows pinned windows in pin order, not report order", () => {
-    const items = resolveUsageSummary(
+    const items = resolvePinnedUsage(
       [claude, codex],
       preferences([
         { sourceId: "codex", windowId: "weekly" },
@@ -65,7 +65,7 @@ describe("resolveUsageSummary", () => {
   });
 
   it("formats the share left when the user reads usage as remaining", () => {
-    const items = resolveUsageSummary(
+    const items = resolvePinnedUsage(
       [claude, codex],
       preferences(
         [
@@ -85,7 +85,7 @@ describe("resolveUsageSummary", () => {
       sourceLabel: "OpenCode",
       windows: [{ id: "monthly", label: "Monthly" }],
     });
-    const items = resolveUsageSummary(
+    const items = resolvePinnedUsage(
       [claude, noPercent],
       preferences([
         { sourceId: "claude", windowId: "monthly" },
@@ -110,7 +110,7 @@ describe("resolveUsageSummary", () => {
       account: "work",
       windows: [{ id: "five-hour", label: "5-hour", usedPct: 90 }],
     });
-    const items = resolveUsageSummary(
+    const items = resolvePinnedUsage(
       [personal, codex, work],
       preferences([{ sourceId: "claude", windowId: "five-hour" }]),
     );

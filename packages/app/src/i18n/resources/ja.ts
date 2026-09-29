@@ -1160,7 +1160,7 @@ export const ja: TranslationResources = {
       closeSidebar: "サイドバーを閉じる",
     },
     footer: {
-      usageSummary: "使用状況の概要",
+      usage: "使用状況",
     },
     help: {
       trigger: "ヘルプとサポート",

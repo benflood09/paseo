@@ -4,7 +4,7 @@ import {
   formatUsageFreshness,
   replaceReport,
   resolveUsageRefresh,
-  resolveSummaryHostId,
+  resolveSidebarUsageHostId,
   resolveUsageScreenHostId,
   resolveUsageView,
   type UsageHost,
@@ -72,19 +72,19 @@ const hosts: UsageHost[] = [
   { serverId: "b", label: "Beta", isConnected: true, supportsUsage: true },
 ];
 
-describe("resolveSummaryHostId", () => {
+describe("resolveSidebarUsageHostId", () => {
   it("reads the active workspace's host", () => {
-    expect(resolveSummaryHostId("b", hosts)).toBe("b");
+    expect(resolveSidebarUsageHostId("b", hosts)).toBe("b");
   });
 
   it("falls back to the first connected host that reports usage", () => {
-    expect(resolveSummaryHostId(null, hosts)).toBe("a");
-    expect(resolveSummaryHostId("offline", hosts)).toBe("a");
-    expect(resolveSummaryHostId("old", hosts)).toBe("a");
+    expect(resolveSidebarUsageHostId(null, hosts)).toBe("a");
+    expect(resolveSidebarUsageHostId("offline", hosts)).toBe("a");
+    expect(resolveSidebarUsageHostId("old", hosts)).toBe("a");
   });
 
   it("has no host when none reports usage", () => {
-    expect(resolveSummaryHostId("old", hosts.slice(0, 2))).toBeNull();
+    expect(resolveSidebarUsageHostId("old", hosts.slice(0, 2))).toBeNull();
   });
 });
 

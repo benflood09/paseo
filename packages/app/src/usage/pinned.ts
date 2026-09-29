@@ -3,8 +3,8 @@ import { displayPercent } from "./model";
 import type { UsagePreferences } from "./preferences";
 import type { UsageReportEntry } from "./types";
 
-/** One pinned window of one account, as the sidebar summary shows it. */
-export interface UsageSummaryItem {
+/** One pinned window of one account, as the sidebar Usage item shows it. */
+export interface PinnedUsageWindow {
   key: string;
   icon: string | null;
   /** Source, account when it has one, and window: "Claude (work) 5-hour". */
@@ -18,13 +18,13 @@ function describe(entry: UsageReportEntry, windowLabel: string): string {
 }
 
 /**
- * The summary's items: pins in pin order, and within a pin one item per account of the source
+ * The pinned windows the Usage item shows: pins in pin order, and within a pin one item per account of the source
  * in report order. A pinned window a report lacks, or reports no percent for, is left out.
  */
-export function resolveUsageSummary(
+export function resolvePinnedUsage(
   reports: readonly UsageReportEntry[],
   preferences: UsagePreferences,
-): UsageSummaryItem[] {
+): PinnedUsageWindow[] {
   return preferences.pinned.flatMap((pin) =>
     reports.flatMap((entry) => {
       if (entry.sourceId !== pin.sourceId) return [];

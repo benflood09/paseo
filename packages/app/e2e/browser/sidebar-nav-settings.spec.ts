@@ -130,10 +130,9 @@ test.describe("Sidebar footer rows in Appearance settings", () => {
 
   test("owner reorders and hides footer rows; the icon row stays fixed", async ({ page }) => {
     test.setTimeout(120_000);
-    // Keys for the footer buttons that used to be configurable are ignored.
+    // Keys for the fixed footer icon buttons are ignored.
     await seedSidebarFooterPreferences(page, [
       { key: "help", visible: false },
-      { key: "usage", visible: false },
       { key: "hosts", visible: false },
       { key: "import", visible: false },
     ]);
@@ -144,19 +143,19 @@ test.describe("Sidebar footer rows in Appearance settings", () => {
       await expect(page.getByTestId("sidebar-nav-section-footer-info")).toHaveAccessibleName(
         "About Footer",
       );
-      await expectFooterSettingsKeys(page, ["usage-summary", syncKey, brokenKey]);
+      await expectFooterSettingsKeys(page, ["usage", syncKey, brokenKey]);
       await leaveSettings(page);
-      await expectFooterOrder(page, ["usage-summary", syncKey]);
+      await expectFooterOrder(page, ["usage", syncKey]);
       await expectFooterIconRow(page);
     });
 
-    await test.step("moving Sync up and hiding the usage summary changes the rows", async () => {
+    await test.step("moving Sync up and hiding the Usage item changes the rows", async () => {
       await openSidebarNavSettings(page);
       await moveFooterItemUp(page, syncKey);
-      await setFooterItemVisible(page, "usage-summary", false);
-      await expectFooterSettingsKeys(page, [syncKey, "usage-summary", brokenKey]);
+      await setFooterItemVisible(page, "usage", false);
+      await expectFooterSettingsKeys(page, [syncKey, "usage", brokenKey]);
       await leaveSettings(page);
-      await expectFooterItemHidden(page, "usage-summary");
+      await expectFooterItemHidden(page, "usage");
       await expect(
         page.locator(`[data-testid="plugin-sidebar-footer-${SHOWCASE_PLUGIN_ID}-sync"]:visible`),
       ).toBeVisible();
@@ -168,10 +167,10 @@ test.describe("Sidebar footer rows in Appearance settings", () => {
       await expect(
         page.locator(`[data-testid="plugin-sidebar-footer-${SHOWCASE_PLUGIN_ID}-sync"]:visible`),
       ).toBeVisible({ timeout: 30_000 });
-      await expectFooterItemHidden(page, "usage-summary");
+      await expectFooterItemHidden(page, "usage");
       await expectFooterIconRow(page);
       await openSidebarNavSettings(page);
-      await expectFooterSettingsKeys(page, [syncKey, "usage-summary", brokenKey]);
+      await expectFooterSettingsKeys(page, [syncKey, "usage", brokenKey]);
     });
   });
 });

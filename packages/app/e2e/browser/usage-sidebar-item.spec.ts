@@ -8,18 +8,17 @@ import { leaveSettings, openSidebarNavSettings } from "../support/helpers/sideba
 import { installUsageReportsFixture } from "../support/helpers/usage-reports";
 import {
   claudeAndCodexReports,
-  expectNoSummary,
+  expectNoPinnedUsage,
   expectOnUsageScreen,
-  expectSummary,
+  expectPinnedUsage,
   leaveUsageScreen,
   openCompactSidebar,
   pinRow,
   showUsageAs,
   togglePin,
-  usageRow,
+  usageItem,
   usageSheet,
-  usageSummary,
-} from "../support/helpers/usage-summary";
+} from "../support/helpers/usage-sidebar-item";
 
 const WIDE = { width: 1440, height: 900 };
 const COMPACT = { width: 390, height: 844 };
@@ -53,7 +52,7 @@ async function footerClip(page: Page) {
   return { x, y, width: 300, height: bottom.y + bottom.height + margin - y };
 }
 
-test.describe("usage summary", () => {
+test.describe("Usage item", () => {
   test("pinned windows show in the sidebar, follow the used/remaining toggle and persist", async ({
     page,
   }) => {
@@ -65,21 +64,20 @@ test.describe("usage summary", () => {
     const screen = page.getByTestId(`usage-host-${serverId}`);
 
     await test.step("a fresh device shows the plain Usage row, which opens the Usage screen", async () => {
-      await expect(usageRow(page)).toBeVisible({ timeout: 30_000 });
-      await expect(usageRow(page)).toHaveText("Usage");
-      await expectNoSummary(page);
+      await expect(usageItem(page)).toBeVisible({ timeout: 30_000 });
+      await expectNoPinnedUsage(page);
       await qaScreenshot(page, "desktop-footer-empty", { kind: "footer" });
-      await usageRow(page).click();
+      await usageItem(page).click();
       await expectOnUsageScreen(page);
     });
 
-    await test.step("pinning Claude 5-hour and Codex weekly shows both in the summary", async () => {
+    await test.step("pinning Claude 5-hour and Codex weekly shows both in the Usage item", async () => {
       await expect(screen.getByText("Claude", { exact: true })).toBeVisible({ timeout: 10_000 });
       await expect(page.getByTestId("usage-host-switcher")).toHaveCount(0);
       await togglePin(screen, "Claude", "Session");
       await togglePin(screen, "Codex", "Weekly");
-      await expectSummary(page, ["31%", "12%"]);
-      await expect(usageRow(page)).toHaveCount(0);
+      await expectPinnedUsage(page, ["31%", "12%"]);
+      await expect(usageItem(page)).not.toHaveText("Usage");
       await qaScreenshot(page, "desktop-footer-pins", { kind: "footer" });
       await expect(page.getByRole("button", { name: "Refresh", exact: true })).toBeVisible();
       await qaScreenshot(page, "usage-screen-header", {
@@ -92,9 +90,9 @@ test.describe("usage summary", () => {
       });
     });
 
-    await test.step("remaining flips the summary and the Usage screen", async () => {
+    await test.step("remaining flips the Usage item and the Usage screen", async () => {
       await showUsageAs(page, "remaining");
-      await expectSummary(page, ["69% left", "88% left"]);
+      await expectPinnedUsage(page, ["69% left", "88% left"]);
       await expect(
         screen.getByTestId("usage-report-claude:default").getByText("69% left"),
       ).toBeVisible();
@@ -103,22 +101,22 @@ test.describe("usage summary", () => {
       ).toBeVisible();
     });
 
-    await test.step("on desktop the summary opens the Usage screen", async () => {
+    await test.step("on desktop the Usage item opens the Usage screen", async () => {
       await gotoAppShell(page);
       await expect(page).not.toHaveURL(/\/usage$/);
-      await usageSummary(page).click();
+      await usageItem(page).click();
       await expectOnUsageScreen(page);
       await expect(page.getByTestId("usage-expanded")).toHaveCount(0);
     });
 
-    await test.step("on a phone the summary opens a bottom sheet", async () => {
+    await test.step("on a phone the Usage item opens a bottom sheet", async () => {
       await page.setViewportSize(COMPACT);
       await leaveUsageScreen(page);
       await openCompactSidebar(page);
-      await expect(usageSummary(page)).toBeInViewport();
-      await expectSummary(page, ["69% left", "88% left"]);
+      await expect(usageItem(page)).toBeInViewport();
+      await expectPinnedUsage(page, ["69% left", "88% left"]);
       await qaScreenshot(page, "compact-footer");
-      await usageSummary(page).click();
+      await usageItem(page).click();
       const sheet = usageSheet(page);
       await expect(sheet.getByText("Codex", { exact: true })).toBeInViewport();
       await expect(sheet.getByText("88% left")).toBeVisible();
@@ -133,13 +131,13 @@ test.describe("usage summary", () => {
       await page.mouse.click(COMPACT.width / 2, sheetBox.y / 2);
       await expect(sheet).toHaveCount(0);
       await page.setViewportSize(WIDE);
-      await usageSummary(page).click();
+      await usageItem(page).click();
       await expectOnUsageScreen(page);
     });
 
     await test.step("a reload keeps the pins and the toggle", async () => {
       await page.reload();
-      await expectSummary(page, ["69% left", "88% left"]);
+      await expectPinnedUsage(page, ["69% left", "88% left"]);
       await expect(
         page.locator('[data-testid="usage-display-remaining"]:visible').first(),
       ).toHaveAttribute("aria-selected", "true");
@@ -159,21 +157,21 @@ test.describe("usage summary", () => {
     await test.step("unpinning both brings back the Usage row, and that survives a reload", async () => {
       await togglePin(screen, "Claude", "Session");
       await togglePin(screen, "Codex", "Weekly");
-      await expectNoSummary(page);
-      await expect(usageRow(page)).toBeVisible();
+      await expectNoPinnedUsage(page);
       await page.reload();
       await expect(screen.getByText("88% left")).toBeVisible({ timeout: 10_000 });
-      await expectNoSummary(page);
+      await expectNoPinnedUsage(page);
       await gotoAppShell(page);
-      await usageRow(page).click();
+      await usageItem(page).click();
       await expectOnUsageScreen(page);
     });
 
-    await test.step("Settings > Sidebar lists the usage summary and no separate Usage button", async () => {
+    await test.step("Settings > Sidebar lists the Usage item", async () => {
       await openSidebarNavSettings(page);
       const footer = page.getByTestId("sidebar-nav-section-footer");
-      await expect(footer.getByTestId("sidebar-nav-item-usage-summary")).toBeVisible();
-      await expect(footer.getByTestId("sidebar-nav-item-usage")).toHaveCount(0);
+      await expect(
+        footer.getByTestId("sidebar-nav-item-usage").getByText("Usage", { exact: true }),
+      ).toBeVisible();
       await qaScreenshot(page, "settings-sidebar-footer", { kind: "element", locator: footer });
       await leaveSettings(page);
     });

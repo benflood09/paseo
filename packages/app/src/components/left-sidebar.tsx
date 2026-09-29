@@ -51,7 +51,7 @@ import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
 import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
-import { UsageSummary } from "@/usage";
+import { UsageSidebarItem } from "@/usage";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
 import { SidebarCalloutSlot } from "./sidebar-callout-slot";
 import { SidebarWorkspaceList } from "./sidebar-workspace-list";
@@ -509,7 +509,7 @@ function SidebarFooter({
   );
 }
 
-/** The footer rows in the user's `sidebarFooterItems` order: the usage summary and plugin rows. */
+/** The footer rows in the user's `sidebarFooterItems` order: the Usage item and plugin rows. */
 function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void }) {
   const { items } = useSidebarNavItems("footer");
   const rowsRef = useRef<View | null>(null);
@@ -527,7 +527,7 @@ function SidebarFooterRows({ onBeforeNavigate }: { onBeforeNavigate?: () => void
             onBeforeNavigate={onBeforeNavigate}
           />
         ) : (
-          <UsageSummary key={item.key} />
+          <UsageSidebarItem key={item.key} />
         ),
       )}
     </View>

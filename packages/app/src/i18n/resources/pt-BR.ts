@@ -1172,7 +1172,7 @@ export const ptBR: TranslationResources = {
       closeSidebar: "Fechar barra lateral",
     },
     footer: {
-      usageSummary: "Resumo de uso",
+      usage: "Uso",
     },
     help: {
       trigger: "Ajuda e suporte",

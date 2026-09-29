@@ -1154,7 +1154,7 @@ export const en = {
       closeSidebar: "Close sidebar",
     },
     footer: {
-      usageSummary: "Usage summary",
+      usage: "Usage",
     },
     help: {
       trigger: "Help and support",

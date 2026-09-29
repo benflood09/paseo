@@ -11,31 +11,31 @@ import { buildUsageRoute } from "@/utils/host-routes";
 import { UsageControls } from "./controls";
 import { usageCopy } from "./copy";
 import { useUsagePreferences, type UsageDisplay } from "./display";
-import { useSummaryHostId } from "./hosts";
+import { useSidebarUsageHostId } from "./hosts";
 import type { UsagePreferences } from "./preferences";
 import { useHostUsage } from "./queries";
 import { UsageSourceIcon } from "./source-icon";
-import { resolveUsageSummary, type UsageSummaryItem } from "./summary";
+import { resolvePinnedUsage, type PinnedUsageWindow } from "./pinned";
 import type { UsageReportEntry } from "./types";
 import { UsageBody } from "./usage-section";
 
 const NO_REPORTS: UsageReportEntry[] = [];
-const NO_ITEMS: UsageSummaryItem[] = [];
+const NO_ITEMS: PinnedUsageWindow[] = [];
 
 /**
  * The sidebar footer's usage entry: each pinned window's source icon and percent, or a plain
  * "Usage" row while no pinned window has data. Pressing it opens the Usage screen; on compact
  * layouts it opens the usage sheet instead.
  */
-export function UsageSummary() {
+export function UsageSidebarItem() {
   const { preferences, display } = useUsagePreferences();
-  const serverId = useSummaryHostId();
+  const serverId = useSidebarUsageHostId();
   // Without pins there is nothing to summarize, so the host is not asked for reports.
   if (!serverId || preferences.pinned.length === 0) {
     return <UsageEntry serverId={serverId} items={NO_ITEMS} display={display} />;
   }
   return (
-    <PinnedUsageSummary
+    <PinnedUsageItem
       key={serverId}
       serverId={serverId}
       preferences={preferences}
@@ -44,7 +44,7 @@ export function UsageSummary() {
   );
 }
 
-function PinnedUsageSummary({
+function PinnedUsageItem({
   serverId,
   preferences,
   display,
@@ -55,7 +55,7 @@ function PinnedUsageSummary({
 }) {
   const { view } = useHostUsage(serverId);
   const reports = view.kind === "ready" ? view.reports : NO_REPORTS;
-  const items = useMemo(() => resolveUsageSummary(reports, preferences), [preferences, reports]);
+  const items = useMemo(() => resolvePinnedUsage(reports, preferences), [preferences, reports]);
   return <UsageEntry serverId={serverId} items={items} display={display} />;
 }
 
@@ -74,7 +74,7 @@ function UsageEntry({
   display,
 }: {
   serverId: string | null;
-  items: readonly UsageSummaryItem[];
+  items: readonly PinnedUsageWindow[];
   display: UsageDisplay;
 }) {
   const isCompact = useIsCompactFormFactor();
@@ -95,7 +95,7 @@ function UsageEntry({
 
   const trigger =
     items.length > 0 ? (
-      <SummaryTrigger items={items} onPress={handlePress} />
+      <PinnedUsageTrigger items={items} onPress={handlePress} />
     ) : (
       <SidebarHeaderRow
         variant="inline"
@@ -135,31 +135,31 @@ function UsageSheet({ serverId, display }: { serverId: string; display: UsageDis
   );
 }
 
-function summaryLabel(items: readonly UsageSummaryItem[]): string {
-  return `${usageCopy.summary}: ${items.map((item) => `${item.label} ${item.percentText}`).join(", ")}`;
+function pinnedUsageLabel(items: readonly PinnedUsageWindow[]): string {
+  return `${usageCopy.title}: ${items.map((item) => `${item.label} ${item.percentText}`).join(", ")}`;
 }
 
 function triggerStyle({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {
   return hovered ? [styles.trigger, styles.triggerHovered] : styles.trigger;
 }
 
-function SummaryTrigger({
+function PinnedUsageTrigger({
   items,
   onPress,
 }: {
-  items: readonly UsageSummaryItem[];
+  items: readonly PinnedUsageWindow[];
   onPress: () => void;
 }) {
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={summaryLabel(items)}
+      accessibilityLabel={pinnedUsageLabel(items)}
       style={triggerStyle}
-      testID="sidebar-usage-summary"
+      testID="sidebar-usage"
     >
       {items.map((item) => (
-        <View key={item.key} style={styles.item} testID="sidebar-usage-summary-item">
+        <View key={item.key} style={styles.item} testID="sidebar-usage-pinned-window">
           <UsageSourceIcon svg={item.icon} size={14} />
           <Text style={styles.percent} numberOfLines={1}>
             {item.percentText}

@@ -57,16 +57,12 @@ function visible(page: Page, testID: string): Locator {
   return page.locator(`[data-testid="${testID}"]:visible`).first();
 }
 
-export function usageSummary(page: Page): Locator {
-  return visible(page, "sidebar-usage-summary");
-}
-
-/** The plain "Usage" row the summary shows while no pinned window has data. */
-export function usageRow(page: Page): Locator {
+/** The sidebar footer's Usage item: pinned windows, or a plain "Usage" row without any. */
+export function usageItem(page: Page): Locator {
   return visible(page, "sidebar-usage");
 }
 
-/** The compact usage sheet the summary opens. */
+/** The compact usage sheet the Usage item opens. */
 export function usageSheet(page: Page): Locator {
   return visible(page, "usage-expanded");
 }
@@ -75,13 +71,15 @@ export async function expectOnUsageScreen(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/usage$/);
 }
 
-export async function expectSummary(page: Page, percents: string[]): Promise<void> {
-  const items = usageSummary(page).getByTestId("sidebar-usage-summary-item");
-  await expect(items).toHaveText(percents);
+export async function expectPinnedUsage(page: Page, percents: string[]): Promise<void> {
+  const windows = usageItem(page).getByTestId("sidebar-usage-pinned-window");
+  await expect(windows).toHaveText(percents);
 }
 
-export async function expectNoSummary(page: Page): Promise<void> {
-  await expect(page.locator('[data-testid="sidebar-usage-summary"]:visible')).toHaveCount(0);
+/** Without pinned windows the Usage item is a plain row that reads "Usage". */
+export async function expectNoPinnedUsage(page: Page): Promise<void> {
+  await expect(page.locator('[data-testid="sidebar-usage-pinned-window"]:visible')).toHaveCount(0);
+  await expect(usageItem(page)).toHaveText("Usage");
 }
 
 /** A window row, which is itself the pin toggle: "Claude", "Session". */
