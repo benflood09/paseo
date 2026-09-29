@@ -74,7 +74,7 @@ export function SidebarHeaderRow({
   }
 
   return (
-    <View ref={rowRef} collapsable={false} style={CONTAINER_STYLES[variant]}>
+    <View ref={rowRef} collapsable={false} style={getContainerStyle(variant)}>
       <View
         style={[styles.row, isHighlighted && styles.rowHighlighted]}
         onPointerEnter={handlePointerEnter}
@@ -175,8 +175,13 @@ const styles = StyleSheet.create((theme) => ({
   },
 }));
 
-const CONTAINER_STYLES = {
-  header: styles.container,
-  compact: styles.containerCompact,
-  inline: styles.containerInline,
-} as const;
+function getContainerStyle(variant: SidebarHeaderRowVariant) {
+  switch (variant) {
+    case "header":
+      return styles.container;
+    case "compact":
+      return styles.containerCompact;
+    case "inline":
+      return styles.containerInline;
+  }
+}
