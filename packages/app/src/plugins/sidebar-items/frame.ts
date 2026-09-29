@@ -7,8 +7,11 @@ export interface SidebarItemFrame {
   section: PluginSidebarSection;
   title: string;
   testID: string;
-  /** Kit components attach here so `openPopover` anchors to them. */
-  anchorRef: (node: View | null) => void;
+  /** A row calls this before its `onPress`, so a popover that press opens anchors to it. */
+  anchorTo: (node: View | null) => void;
+  /** Rows offer themselves on mount, so a popover opened without a press anchors to a row. */
+  offerAnchor: (node: View | null) => void;
+  releaseAnchor: (node: View | null) => void;
 }
 
 export const SidebarItemFrameContext = createContext<SidebarItemFrame | null>(null);

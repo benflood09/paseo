@@ -3,16 +3,18 @@ import type {
   PluginAgentCommandContext,
   PluginCommandCapabilities,
   PluginPanelLocation,
+  PluginScreenParams,
   PluginWorkspaceCommandContext,
 } from "@getpaseo/plugin/client";
 import type { PluginClientStateSource } from "@getpaseo/plugin/client/host";
 import { resolvePluginPanelOpenLocation } from "./workspace-panels/locations";
 import type { PluginSurfaceRuntime } from "./surface-runtime";
+import { parsePluginOpenScreenInput } from "./surface-contribution";
 import type { InstalledPlugin } from "./types";
 
 export interface PluginNavigation {
   openSettings(pluginId: string, screenId: string): void;
-  openSurface(pluginId: string, surfaceId: string): void;
+  openSurface(pluginId: string, surfaceId: string, params?: PluginScreenParams): void;
   openWorkspacePanel(pluginId: string, panelId: string, location: PluginPanelLocation): void;
   openAgentPanel(
     pluginId: string,
@@ -27,11 +29,9 @@ export function createPluginCapabilities(
   runtime: PluginSurfaceRuntime,
   navigation: PluginNavigation,
 ): PluginCommandCapabilities {
-  function openScreen(screenId: string) {
-    if (!plugin.surfaces.some((surface) => surface.id === screenId)) {
-      throw new Error(`Plugin screen is unavailable: ${screenId}`);
-    }
-    navigation.openSurface(plugin.id, screenId);
+  function openScreen(input: unknown) {
+    const { screenId, params } = parsePluginOpenScreenInput(plugin, input);
+    navigation.openSurface(plugin.id, screenId, params);
   }
   return {
     paseo: runtime.paseo,
@@ -43,7 +43,7 @@ export function createPluginCapabilities(
     },
     openScreen,
     // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
-    openSurface: openScreen,
+    openSurface: (screenId) => openScreen({ screenId }),
   };
 }
 

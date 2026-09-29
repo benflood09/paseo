@@ -8,11 +8,11 @@ export function createLegacySidebarItemComponent(
   contribution: PluginSidebarContribution,
 ): ComponentType<PluginSidebarItemProps> {
   return function LegacySidebarItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
-    const open = useCallback(() => openScreen(contribution.surface), [openScreen]);
+    const open = useCallback(() => openScreen({ screenId: contribution.surface }), [openScreen]);
     return (
       <SidebarRow
         icon={contribution.icon}
-        active={currentScreen === contribution.surface}
+        active={currentScreen?.screenId === contribution.surface}
         onPress={open}
       />
     );

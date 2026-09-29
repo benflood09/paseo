@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
+import type { PluginScreenParams, PluginSurfaceProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { X } from "lucide-react-native";
 import { useCallback, useMemo, type ComponentType } from "react";
@@ -18,7 +18,7 @@ import { usePluginHostNavigation } from "./host-navigation";
 import { resolvePluginIcon } from "./icons";
 import { toPluginTheme } from "./theme";
 import { useInstalledPlugin, usePluginInstallations } from "./registry";
-import { buildPluginSurfaceRoute } from "./routes";
+import { buildPluginSurfaceRoute, pluginScreenParamsFromRoute } from "./routes";
 import { rememberPluginContributionHost } from "./contribution-host";
 import { SurfaceErrorBoundary } from "./surface-error-boundary";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -59,6 +59,7 @@ function SurfaceRenderer({
   plugin,
   layout,
   host,
+  params,
   theme,
 }: {
   Surface: ComponentType<PluginSurfaceProps>;
@@ -66,12 +67,13 @@ function SurfaceRenderer({
   plugin: NonNullable<ReturnType<typeof useInstalledPlugin>>;
   layout: PluginSurfaceProps["layout"];
   host: PluginSurfaceProps["host"];
+  params: PluginScreenParams;
   theme: PluginTheme;
 }) {
   const navigation = usePluginHostNavigation(host.id);
   return (
     <PluginRuntimeBoundary plugin={plugin} client={client}>
-      <Surface theme={theme} host={host} layout={layout} navigation={navigation} />
+      <Surface theme={theme} host={host} layout={layout} navigation={navigation} params={params} />
     </PluginRuntimeBoundary>
   );
 }
@@ -82,11 +84,13 @@ function PluginHostSwitcher({
   serverId,
   pluginId,
   identity,
+  params,
   serverIds,
 }: {
   serverId: string;
   pluginId: string;
   identity: PluginSurfaceContributionIdentity;
+  params: PluginScreenParams;
   serverIds: string[];
 }) {
   const allHosts = useHosts();
@@ -97,9 +101,9 @@ function PluginHostSwitcher({
   const selectHost = useCallback(
     (nextServerId: string) => {
       rememberPluginContributionHost(`${pluginId}/${identity.kind}/${identity.id}`, nextServerId);
-      router.replace(buildPluginSurfaceRoute(nextServerId, pluginId, identity));
+      router.replace(buildPluginSurfaceRoute(nextServerId, pluginId, identity, params));
     },
-    [identity, pluginId],
+    [identity, params, pluginId],
   );
   const show = serverIds.length > 1 && hosts.length > 1;
   if (!show) return null;
@@ -117,16 +121,19 @@ function PluginHostSwitcher({
 }
 
 export function PluginSurfaceScreen() {
-  const params = useLocalSearchParams<{
+  const routeParams = useLocalSearchParams<{
     serverId?: string | string[];
     pluginId?: string | string[];
     contributionKind?: string | string[];
     contributionId?: string | string[];
   }>();
-  const serverId = routeParam(params.serverId);
-  const pluginId = routeParam(params.pluginId);
-  const contributionKind = routeParam(params.contributionKind);
-  const contributionId = routeParam(params.contributionId);
+  const serverId = routeParam(routeParams.serverId);
+  const pluginId = routeParam(routeParams.pluginId);
+  const contributionKind = routeParam(routeParams.contributionKind);
+  const contributionId = routeParam(routeParams.contributionId);
+  const paramsKey = JSON.stringify(pluginScreenParamsFromRoute(routeParams));
+  // Keyed by content: the route hands back a new object on every render.
+  const params = useMemo<PluginScreenParams>(() => JSON.parse(paramsKey), [paramsKey]);
   const identity = useMemo<PluginSurfaceContributionIdentity | null>(() => {
     if (contributionKind !== "sidebar" && contributionKind !== "surface") return null;
     return { kind: contributionKind, id: contributionId };
@@ -175,6 +182,7 @@ export function PluginSurfaceScreen() {
             serverId={serverId}
             pluginId={pluginId}
             identity={identity}
+            params={params}
             serverIds={contributionServerIds}
           />
         ) : null}
@@ -190,7 +198,7 @@ export function PluginSurfaceScreen() {
         </HeaderToggleButton>
       </>
     ),
-    [close, contributionServerIds, identity, pluginId, serverId],
+    [close, contributionServerIds, identity, params, pluginId, serverId],
   );
 
   return (
@@ -209,6 +217,7 @@ export function PluginSurfaceScreen() {
               plugin={plugin}
               host={host}
               layout={layout}
+              params={params}
               uniProps={pluginThemeMapping}
             />
           </SurfaceErrorBoundary>

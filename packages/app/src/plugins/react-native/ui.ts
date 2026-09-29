@@ -11,4 +11,4 @@ export {
 
 export { ExternalLink } from "@/components/ui/external-link";
 
-export { SidebarRow } from "@/plugins/sidebar-items/kit";
+export { SidebarRow, SidebarSeparator } from "@/plugins/sidebar-items/kit";

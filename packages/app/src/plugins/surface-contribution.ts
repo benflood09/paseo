@@ -1,4 +1,9 @@
-import { parsePluginSurfaceRoute } from "./routes";
+import type { PluginScreenLocation } from "@getpaseo/plugin/client";
+import {
+  parsePluginScreenParams,
+  parsePluginSurfaceRoute,
+  pluginScreenParamsFromRoute,
+} from "./routes";
 import type { InstalledPlugin } from "./types";
 
 export type PluginSurfaceContributionIdentity =
@@ -30,11 +35,35 @@ export function resolvePluginSurfaceContribution(
   return { sidebarItem, surface };
 }
 
-/** The installation's screen open at `pathname`, or null when the route shows anything else. */
-export function currentPluginScreen(plugin: InstalledPlugin, pathname: string): string | null {
+/**
+ * The installation's screen open at `pathname` with the route's search params, or null when the
+ * route shows anything else.
+ */
+export function currentPluginScreen(
+  plugin: InstalledPlugin,
+  pathname: string,
+  routeParams: Readonly<Record<string, string | string[] | undefined>>,
+): PluginScreenLocation | null {
   const route = parsePluginSurfaceRoute(pathname);
   if (!route || route.serverId !== plugin.serverId || route.pluginId !== plugin.id) return null;
-  return resolvePluginSurfaceContribution(plugin, route.identity).surface?.id ?? null;
+  const screenId = resolvePluginSurfaceContribution(plugin, route.identity).surface?.id;
+  return screenId ? { screenId, params: pluginScreenParamsFromRoute(routeParams) } : null;
+}
+
+/** Checks an `openScreen` input against the installation's screens. Throws when it is invalid. */
+export function parsePluginOpenScreenInput(
+  plugin: InstalledPlugin,
+  input: unknown,
+): PluginScreenLocation {
+  if (typeof input !== "object" || input === null || !("screenId" in input)) {
+    throw new Error("openScreen takes { screenId, params? }");
+  }
+  const { screenId } = input;
+  if (typeof screenId !== "string" || !plugin.surfaces.some((surface) => surface.id === screenId)) {
+    throw new Error(`Plugin screen is unavailable: ${String(screenId)}`);
+  }
+  const params = "params" in input ? input.params : undefined;
+  return { screenId, params: parsePluginScreenParams(params) };
 }
 
 export function getPluginSurfaceContributionServerIds(

@@ -28,8 +28,8 @@ function GreetingItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   return (
     <SidebarRow
       icon="MessageCircle"
-      active={currentScreen === "greeting"}
-      onPress={() => openScreen("greeting")}
+      active={currentScreen?.screenId === "greeting"}
+      onPress={() => openScreen({ screenId: "greeting" })}
     />
   );
 }

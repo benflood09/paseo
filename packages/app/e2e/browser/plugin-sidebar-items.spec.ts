@@ -3,6 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { gotoWorkspace } from "../support/helpers/launcher";
 import {
+  BOTS_PLUGIN_ID,
   COMPACT,
   LEGACY_PLUGIN_ID,
   SHOWCASE_PLUGIN_ID,
@@ -16,7 +17,7 @@ import {
   runCommand,
   visibleTestId,
 } from "../support/helpers/plugin-sidebar-items";
-import { openSidebarNavSettings } from "../support/helpers/sidebar-nav-settings";
+import { leaveSettings, openSidebarNavSettings } from "../support/helpers/sidebar-nav-settings";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 
@@ -51,6 +52,26 @@ async function expectFooterRow(page: Page, row: Locator) {
       };
     })
     .toEqual({ belowAddProject: true, aboveIconRow: true, alignedLeft: true, fullWidth: true });
+}
+
+function botRow(page: Page, rowId: string): Locator {
+  return headerRow(page, BOTS_PLUGIN_ID, `bots-${rowId}`);
+}
+
+async function boxOf(locator: Locator) {
+  const result = await locator.boundingBox();
+  expect(result).not.toBeNull();
+  return result!;
+}
+
+async function expectBotScreen(page: Page, botId: string) {
+  await expect(page).toHaveURL(
+    new RegExp(`/plugin/${BOTS_PLUGIN_ID}/surface/bot\\?botId=${botId}$`),
+  );
+  await expect(page.getByText(`Bot screen: ${botId}`, { exact: true })).toBeVisible();
+  await expectRowActive(botRow(page, "bot-1"), botId === "bot-1");
+  await expectRowActive(botRow(page, "bot-2"), botId === "bot-2");
+  await expectRowActive(botRow(page, "status"), false);
 }
 
 function sidebarFooter(page: Page): Locator {
@@ -236,5 +257,95 @@ test.describe("Plugin sidebar items", () => {
       await expect(page.getByTestId("sidebar-nav-section-footer").first()).toBeAttached();
       await qaScreenshot(page, "phase2-compact-settings-sidebar");
     });
+  });
+  test("one item renders a group of rows, and each row opens its own screen params", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    await page.setViewportSize(WIDE);
+    await gotoWorkspace(page, workspaceId);
+    const bot1 = botRow(page, "bot-1");
+    const bot2 = botRow(page, "bot-2");
+    const status = botRow(page, "status");
+    await expect(bot1).toBeVisible({ timeout: 30_000 });
+
+    await test.step("the rows and the separator render in order in the header", async () => {
+      await expect(bot1).toHaveAccessibleName("Bot 1");
+      await expect(bot2).toHaveAccessibleName("Bot 2");
+      await expect(status).toHaveAccessibleName("Bot status");
+      const [first, second, third] = [await boxOf(bot1), await boxOf(bot2), await boxOf(status)];
+      expect(second.y).toBeGreaterThan(first.y);
+      // The separator adds its line and margins between Bot 2 and the status row.
+      expect(third.y - (second.y + second.height)).toBeGreaterThan(8);
+      expect(second.y - (first.y + first.height)).toBeLessThan(4);
+    });
+
+    await test.step("pressing Bot 2 opens the bot screen and highlights only its row", async () => {
+      await bot2.click();
+      await expectBotScreen(page, "bot-2");
+      await qaScreenshot(page, "phase6-desktop-sidebar-bots");
+    });
+
+    await test.step("a reload keeps the screen and its params", async () => {
+      await page.reload();
+      await expectBotScreen(page, "bot-2");
+      await qaScreenshot(page, "phase6-bot-screen");
+    });
+
+    await test.step("Bot 1 replaces Bot 2 on the same screen, and back returns to Bot 2", async () => {
+      await bot1.click();
+      await expectBotScreen(page, "bot-1");
+      await page.goBack();
+      await expectBotScreen(page, "bot-2");
+    });
+
+    await test.step("a popover opened from a later row anchors to that row", async () => {
+      await status.click();
+      const popover = await popoverBox(page, "Bot status details");
+      const row = await boxOf(status);
+      const first = await boxOf(bot1);
+      expect(popover.x).toBeGreaterThanOrEqual(row.x + row.width);
+      expect(Math.abs(popover.y - row.y)).toBeLessThan(40);
+      expect(popover.y - first.y).toBeGreaterThan(40);
+      await qaScreenshot(page, "phase6-desktop-popover-row");
+      await page.getByRole("button", { name: "Close bot status", exact: true }).click();
+      await expect(page.getByText("Bot status details", { exact: true })).toHaveCount(0);
+    });
+
+    await test.step("Settings lists the group as one item", async () => {
+      await openSidebarNavSettings(page);
+      const header = page.getByTestId("sidebar-nav-section-header");
+      await expect(
+        header.getByTestId(`sidebar-nav-item-plugin:${BOTS_PLUGIN_ID}:bots`),
+      ).toHaveCount(1);
+      await expect(header.getByText("Bots", { exact: true })).toHaveCount(1);
+      await expect(header.getByText("Bot 1", { exact: true })).toHaveCount(0);
+      await leaveSettings(page);
+    });
+
+    await test.step("the compact sidebar shows the same group", async () => {
+      await page.setViewportSize(COMPACT);
+      await page.getByRole("button", { name: "Open menu", exact: true }).first().click();
+      await expect(botRow(page, "bot-1")).toBeInViewport();
+      await expect(botRow(page, "status")).toBeInViewport();
+      await qaScreenshot(page, "phase6-compact-sidebar-bots");
+    });
+  });
+
+  test("a plugin adds and removes a footer item after setup", async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize(WIDE);
+    await gotoWorkspace(page, workspaceId);
+    await expect(botRow(page, "bot-1")).toBeVisible({ timeout: 30_000 });
+    const alerts = footerItem(page, BOTS_PLUGIN_ID, "alerts");
+    await expect(alerts).toHaveCount(0);
+
+    await runCommand(page, "Add bot alerts");
+    await expect(alerts).toBeVisible();
+    await expect(alerts).toHaveAccessibleName("Bot alerts");
+    await expectFooterRow(page, alerts);
+
+    await runCommand(page, "Remove bot alerts");
+    await expect(alerts).toHaveCount(0);
   });
 });

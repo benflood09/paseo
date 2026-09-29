@@ -4,8 +4,8 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Hosts } from "./client/hosts";
 
 function HostsItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
-  const open = useCallback(() => openScreen("main"), [openScreen]);
-  return <SidebarRow icon="Server" active={currentScreen === "main"} onPress={open} />;
+  const open = useCallback(() => openScreen({ screenId: "main" }), [openScreen]);
+  return <SidebarRow icon="Server" active={currentScreen?.screenId === "main"} onPress={open} />;
 }
 
 export default function contribute(client: PluginClientContext) {

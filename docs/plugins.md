@@ -267,8 +267,8 @@ function GreetingItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   return (
     <SidebarRow
       icon="MessageCircle"
-      active={currentScreen === "main"}
-      onPress={() => openScreen("main")}
+      active={currentScreen?.screenId === "main"}
+      onPress={() => openScreen({ screenId: "main" })}
     />
   );
 }
@@ -288,6 +288,12 @@ errors are logged and do not interrupt host teardown.
 
 Paseo owns the route, screen header, Lucide icon validation, close action, theme DTO, layout facts,
 and render error boundary. The contributed component owns the complete body below the header.
+
+Screen params ride in the screen route's query string (`plugins/routes.ts`), not in app state, so
+reload, history, links, and the host switcher keep them without a store. The route's own segment
+names share that query in Expo Router's search params, so `openScreen` rejects them as param keys.
+`openScreen` validates its input once (`parsePluginOpenScreenInput`); code past it trusts the
+params.
 
 RPC contracts validate inputs and outputs in both the app and plugin subprocess. `useRpc` returns a
 typed async function. Use the host-provided `@tanstack/react-query` for request state and caching;
@@ -411,12 +417,17 @@ lives in `packages/app/src/plugins/sidebar-items/`; `packages/app/src/sidebar-na
 one section's order from built-ins, plugin groups, and the section's preference
 (`sidebarNavItems` or `sidebarFooterItems`).
 
-- The item's `Component` renders directly in the section, with no wrapper. Footer items are rows
-  between Add project and the footer's icon row. The icon row (Hosts, Import session, Help and
-  support, Settings) is fixed app code, not a contribution slot, so the kit has no icon button.
+- The item's `Component` renders directly in the section, with no wrapper, so a fragment or array
+  of rows lays out like separate items while Settings keeps one entry for the block. Footer items
+  are rows between Add project and the footer's icon row. The icon row (Hosts, Import session,
+  Help and support, Settings) is fixed app code, not a contribution slot, so the kit has no icon
+  button.
 - `openPopover` opens through the same `PluginPopoverSurface` as header buttons
-  (`plugins/popover.tsx`). `SidebarRow` attaches itself as the menu anchor. An item that
-  renders no kit component anchors to its section container.
+  (`plugins/popover.tsx`). A `SidebarRow` press moves the menu anchor to that row before calling
+  `onPress`; until a press, the first mounted row holds it. An item that renders no kit component
+  anchors to its section container.
+- `SidebarSeparator` reuses the app's separator and cancels the footer's horizontal padding, so
+  the line runs edge to edge in both sections.
 - `SidebarRow.trailing` is a sibling of the row's `Pressable`; web cannot nest buttons.
 - `addSurface`, `openSurface`, and `addSidebarItem` are undocumented aliases, tagged
   `COMPAT(pluginSidebarAliases)`. `addSidebarItem` expands to a header item rendering

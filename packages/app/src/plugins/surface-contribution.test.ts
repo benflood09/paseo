@@ -4,6 +4,7 @@ import type { InstalledPlugin } from "./types";
 import {
   currentPluginScreen,
   getPluginSurfaceContributionServerIds,
+  parsePluginOpenScreenInput,
   resolvePluginSurfaceContribution,
 } from "./surface-contribution";
 
@@ -103,15 +104,56 @@ describe("currentPluginScreen", () => {
     [{ id: "legacy", surface: "details" }],
   );
 
-  it("reads the open screen from direct and legacy routes on the installation's host", () => {
-    expect(currentPluginScreen(plugin, "/h/local/plugin/review/surface/overview")).toBe("overview");
-    expect(currentPluginScreen(plugin, "/h/local/plugin/review/sidebar/legacy")).toBe("details");
+  it("reads the open screen and its params from direct and legacy routes on the installation's host", () => {
+    expect(
+      currentPluginScreen(plugin, "/h/local/plugin/review/surface/overview", {
+        serverId: "local",
+        pluginId: "review",
+        contributionKind: "surface",
+        contributionId: "overview",
+        botId: "bot-2",
+      }),
+    ).toEqual({ screenId: "overview", params: { botId: "bot-2" } });
+    expect(currentPluginScreen(plugin, "/h/local/plugin/review/sidebar/legacy", {})).toEqual({
+      screenId: "details",
+      params: {},
+    });
   });
 
   it("is null on another host, another plugin, or a missing screen", () => {
-    expect(currentPluginScreen(plugin, "/h/remote/plugin/review/surface/overview")).toBeNull();
-    expect(currentPluginScreen(plugin, "/h/local/plugin/other/surface/overview")).toBeNull();
-    expect(currentPluginScreen(plugin, "/h/local/plugin/review/surface/missing")).toBeNull();
-    expect(currentPluginScreen(plugin, "/h/local/workspace/abc")).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/remote/plugin/review/surface/overview", {})).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/local/plugin/other/surface/overview", {})).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/local/plugin/review/surface/missing", {})).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/local/workspace/abc", {})).toBeNull();
+  });
+});
+
+describe("parsePluginOpenScreenInput", () => {
+  const plugin = installation("local", ["bot"]);
+
+  it("accepts a registered screen with or without string params", () => {
+    expect(parsePluginOpenScreenInput(plugin, { screenId: "bot" })).toEqual({
+      screenId: "bot",
+      params: {},
+    });
+    expect(parsePluginOpenScreenInput(plugin, { screenId: "bot", params: { botId: "2" } })).toEqual(
+      { screenId: "bot", params: { botId: "2" } },
+    );
+  });
+
+  it("throws on a bare id, an unknown screen, or params that are not strings", () => {
+    expect(() => parsePluginOpenScreenInput(plugin, "bot")).toThrow("{ screenId, params? }");
+    expect(() => parsePluginOpenScreenInput(plugin, { screenId: "missing" })).toThrow(
+      "unavailable: missing",
+    );
+    expect(() =>
+      parsePluginOpenScreenInput(plugin, { screenId: "bot", params: { botId: 2 } }),
+    ).toThrow("botId must be a string");
+    expect(() => parsePluginOpenScreenInput(plugin, { screenId: "bot", params: ["2"] })).toThrow(
+      "must be an object of strings",
+    );
+    expect(() =>
+      parsePluginOpenScreenInput(plugin, { screenId: "bot", params: { pluginId: "x" } }),
+    ).toThrow("pluginId is reserved");
   });
 });

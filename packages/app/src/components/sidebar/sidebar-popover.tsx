@@ -30,20 +30,36 @@ function assignRef(ref: RefObject<View | null>, node: View | null) {
   Object.assign(ref, { current: node });
 }
 
-/** Attaches the popover to an element, or to `fallback` when nothing attached. */
+/**
+ * Where the popover anchors. `anchorTo` moves it to an element, such as the row just pressed;
+ * `offerAnchor` sets it only when nothing is anchored; `releaseAnchor` drops an element that is
+ * going away; `anchorToFallback` covers an item that anchored nothing.
+ */
 export function useSidebarPopoverAnchor(name: string): {
-  anchorRef: (node: View | null) => void;
+  anchorTo: (node: View | null) => void;
+  offerAnchor: (node: View | null) => void;
+  releaseAnchor: (node: View | null) => void;
   anchorToFallback: (fallback: RefObject<View | null>) => void;
 } {
   const { triggerRef } = useMenuContext(name);
-  const anchorRef = useCallback((node: View | null) => assignRef(triggerRef, node), [triggerRef]);
-  const anchorToFallback = useCallback(
-    (fallback: RefObject<View | null>) => {
-      if (!triggerRef.current) assignRef(triggerRef, fallback.current);
+  const anchorTo = useCallback((node: View | null) => assignRef(triggerRef, node), [triggerRef]);
+  const offerAnchor = useCallback(
+    (node: View | null) => {
+      if (!triggerRef.current) assignRef(triggerRef, node);
     },
     [triggerRef],
   );
-  return { anchorRef, anchorToFallback };
+  const releaseAnchor = useCallback(
+    (node: View | null) => {
+      if (triggerRef.current === node) assignRef(triggerRef, null);
+    },
+    [triggerRef],
+  );
+  const anchorToFallback = useCallback(
+    (fallback: RefObject<View | null>) => offerAnchor(fallback.current),
+    [offerAnchor],
+  );
+  return { anchorTo, offerAnchor, releaseAnchor, anchorToFallback };
 }
 
 const PLACEMENT = {

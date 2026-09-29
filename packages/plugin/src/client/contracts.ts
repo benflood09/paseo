@@ -47,19 +47,35 @@ interface PluginNavigableHostProps extends PluginHostProps {
   };
 }
 
-export interface PluginSurfaceProps extends PluginNavigableHostProps {}
+/** String keys and values: params travel in the screen's URL. */
+export type PluginScreenParams = Record<string, string>;
+
+export interface PluginOpenScreenInput {
+  screenId: string;
+  params?: PluginScreenParams;
+}
+
+export interface PluginScreenLocation {
+  screenId: string;
+  params: PluginScreenParams;
+}
+
+export interface PluginSurfaceProps extends PluginNavigableHostProps {
+  /** The params the screen was opened with; `{}` when none. */
+  params: PluginScreenParams;
+}
 
 export type PluginScreenProps = PluginSurfaceProps;
 
 export interface PluginPopoverProps extends PluginHostProps {
   close(): void;
-  openScreen(id: string): void;
+  openScreen(input: PluginOpenScreenInput): void;
 }
 
 export interface PluginSidebarItemProps extends PluginHostProps {
-  /** This plugin's screen open on this item's host, else null. */
-  currentScreen: string | null;
-  openScreen(id: string): void;
+  /** This plugin's screen open on this item's host, with its params, else null. */
+  currentScreen: PluginScreenLocation | null;
+  openScreen(input: PluginOpenScreenInput): void;
   /** Anchored to the item on wide layouts; a bottom sheet on compact layouts. */
   openPopover(Content: ComponentType<PluginPopoverProps>): void;
 }
@@ -206,7 +222,7 @@ export interface PluginCommandCapabilities {
     contract: PluginRpcContract<InputSchema, OutputSchema>,
     input: ZodInput<InputSchema>,
   ): Promise<ZodOutput<OutputSchema>>;
-  openScreen(id: string): void;
+  openScreen(input: PluginOpenScreenInput): void;
   /** @deprecated Use `openScreen`. */
   openSurface(id: string): void;
   openSettings(id: string): void;

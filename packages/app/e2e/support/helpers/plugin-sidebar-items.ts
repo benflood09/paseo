@@ -8,6 +8,7 @@ import { pluginRequirements } from "./plugin-fixture";
 
 export const SHOWCASE_PLUGIN_ID = "sidebar-showcase";
 export const LEGACY_PLUGIN_ID = "legacy-sidebar";
+export const BOTS_PLUGIN_ID = "sidebar-bots";
 export const WIDE = { width: 1440, height: 900 };
 export const COMPACT = { width: 390, height: 844 };
 
@@ -34,8 +35,8 @@ function DeploysItem({ theme, currentScreen, openScreen }) {
     <SidebarRow
       icon="Rocket"
       label={refreshes === 0 ? undefined : "Deploys (refreshed " + refreshes + ")"}
-      active={currentScreen === "deploys"}
-      onPress={() => openScreen("deploys")}
+      active={currentScreen?.screenId === "deploys"}
+      onPress={() => openScreen({ screenId: "deploys" })}
       trailing={<RefreshButton theme={theme} onPress={() => setRefreshes((count) => count + 1)} />}
     />
   );
@@ -46,7 +47,7 @@ function SyncDetails({ theme, layout, close, openScreen }) {
     <View style={{ gap: 8 }}>
       <Text style={{ color: theme.colors.foreground }}>Sync details</Text>
       <Text style={{ color: theme.colors.foregroundMuted }}>Presentation: {layout.compact ? "compact" : "wide"}</Text>
-      <Pressable accessibilityRole="button" accessibilityLabel="Open deploys from popover" onPress={() => openScreen("deploys")}><Text style={{ color: theme.colors.foreground }}>Open deploys</Text></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Open deploys from popover" onPress={() => openScreen({ screenId: "deploys" })}><Text style={{ color: theme.colors.foreground }}>Open deploys</Text></Pressable>
       <Pressable accessibilityRole="button" accessibilityLabel="Close sync details" onPress={close}><Text style={{ color: theme.colors.foreground }}>Done</Text></Pressable>
     </View>
   );
@@ -66,7 +67,72 @@ export default function contribute(client) {
   client.addSidebarHeaderItem({ id: "broken", title: "Broken header", Component: Broken });
   client.addSidebarFooterItem({ id: "sync", title: "Sync", Component: SyncItem });
   client.addSidebarFooterItem({ id: "broken", title: "Broken footer", Component: Broken });
-  client.addCommandCenterItem({ id: "open-deploys", title: "Open deploys", icon: "Rocket", context: "global", onSelect: (ctx) => ctx.openScreen("deploys") });
+  client.addCommandCenterItem({ id: "open-deploys", title: "Open deploys", icon: "Rocket", context: "global", onSelect: (ctx) => ctx.openScreen({ screenId: "deploys" }) });
+  return () => {};
+}
+`;
+
+/**
+ * One header item that renders a group: a row per bot, a separator and a status row. Each bot
+ * row opens the bot screen with the bot's id as a param. Two commands add and remove a footer
+ * item after setup.
+ */
+const BOTS_SOURCE = `import React from "react";
+import { Pressable, Text, View } from "react-native";
+import { SidebarRow, SidebarSeparator } from "@getpaseo/plugin/client/ui";
+
+const BOTS = [
+  { id: "bot-1", name: "Bot 1" },
+  { id: "bot-2", name: "Bot 2" },
+];
+
+function BotScreen({ theme, params }) {
+  return <View style={{ flex: 1, padding: 24 }}><Text style={{ color: theme.colors.foreground }}>{"Bot screen: " + params.botId}</Text></View>;
+}
+
+function BotStatus({ theme, close }) {
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={{ color: theme.colors.foreground }}>Bot status details</Text>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close bot status" onPress={close}><Text style={{ color: theme.colors.foreground }}>Done</Text></Pressable>
+    </View>
+  );
+}
+
+function BotsItem({ currentScreen, openScreen, openPopover }) {
+  return (
+    <>
+      {BOTS.map((bot) => (
+        <SidebarRow
+          key={bot.id}
+          id={bot.id}
+          icon="Bot"
+          label={bot.name}
+          active={currentScreen?.screenId === "bot" && currentScreen.params.botId === bot.id}
+          onPress={() => openScreen({ screenId: "bot", params: { botId: bot.id } })}
+        />
+      ))}
+      <SidebarSeparator />
+      <SidebarRow id="status" icon="Activity" label="Bot status" onPress={() => openPopover(BotStatus)} />
+    </>
+  );
+}
+
+function AlertsItem() {
+  return <SidebarRow icon="Bell" onPress={() => {}} />;
+}
+
+export default function contribute(client) {
+  let removeAlerts = null;
+  client.addScreen("bot", BotScreen);
+  client.addSidebarHeaderItem({ id: "bots", title: "Bots", Component: BotsItem });
+  client.addCommandCenterItem({ id: "add-alerts", title: "Add bot alerts", icon: "Bell", context: "global", onSelect: () => {
+    if (!removeAlerts) removeAlerts = client.addSidebarFooterItem({ id: "alerts", title: "Bot alerts", Component: AlertsItem });
+  } });
+  client.addCommandCenterItem({ id: "remove-alerts", title: "Remove bot alerts", icon: "BellOff", context: "global", onSelect: () => {
+    removeAlerts?.();
+    removeAlerts = null;
+  } });
   return () => {};
 }
 `;
@@ -94,6 +160,7 @@ export async function installSidebarPlugins() {
   for (const [id, source] of [
     [SHOWCASE_PLUGIN_ID, SHOWCASE_SOURCE],
     [LEGACY_PLUGIN_ID, LEGACY_SOURCE],
+    [BOTS_PLUGIN_ID, BOTS_SOURCE],
   ] as const) {
     const directory = await mkdtemp(path.join(tmpdir(), `paseo-${id}-`));
     directories.push(directory);
@@ -109,6 +176,7 @@ export async function installSidebarPlugins() {
     async cleanup() {
       await client.removePlugin(SHOWCASE_PLUGIN_ID);
       await client.removePlugin(LEGACY_PLUGIN_ID);
+      await client.removePlugin(BOTS_PLUGIN_ID);
       await client.patchDaemonConfig({ pluginsEnabled: config.config.pluginsEnabled });
       await client.close();
       await Promise.all(
@@ -149,8 +217,8 @@ export async function closeScreen(page: Page): Promise<void> {
 }
 
 /** Box of the popover body, located from the text it renders. */
-export async function popoverBox(page: Page) {
-  const details = page.getByText("Sync details", { exact: true });
+export async function popoverBox(page: Page, text = "Sync details") {
+  const details = page.getByText(text, { exact: true });
   await expect(details).toBeInViewport();
   const box = await details.boundingBox();
   expect(box).not.toBeNull();

@@ -3,6 +3,7 @@ import {
   buildLegacyPluginSurfaceRedirectRoute,
   buildPluginSurfaceRoute,
   parsePluginSurfaceRoute,
+  pluginScreenParamsFromRoute,
 } from "./routes";
 
 describe("buildPluginSurfaceRoute", () => {
@@ -12,6 +13,20 @@ describe("buildPluginSurfaceRoute", () => {
     );
     expect(buildPluginSurfaceRoute("host/one", "review", { kind: "sidebar", id: "overview" })).toBe(
       "/h/host%2Fone/plugin/review/sidebar/overview",
+    );
+  });
+
+  it("puts screen params in the query, encoded, and leaves the path alone", () => {
+    expect(
+      buildPluginSurfaceRoute(
+        "local",
+        "bots",
+        { kind: "surface", id: "bot" },
+        { botId: "bot 2", "a&b": "x=y" },
+      ),
+    ).toBe("/h/local/plugin/bots/surface/bot?botId=bot%202&a%26b=x%3Dy");
+    expect(buildPluginSurfaceRoute("local", "bots", { kind: "surface", id: "bot" }, {})).toBe(
+      "/h/local/plugin/bots/surface/bot",
     );
   });
 
@@ -43,5 +58,21 @@ describe("parsePluginSurfaceRoute", () => {
   it("ignores routes that are not plugin screens", () => {
     expect(parsePluginSurfaceRoute("/h/local/workspace/abc")).toBeNull();
     expect(parsePluginSurfaceRoute("/h/local/plugin/review/settings/general")).toBeNull();
+  });
+});
+
+describe("pluginScreenParamsFromRoute", () => {
+  it("keeps the query's string params and drops the route's own segments", () => {
+    expect(
+      pluginScreenParamsFromRoute({
+        serverId: "local",
+        pluginId: "bots",
+        contributionKind: "surface",
+        contributionId: "bot",
+        botId: "bot-2",
+        tags: ["a", "b"],
+        missing: undefined,
+      }),
+    ).toEqual({ botId: "bot-2" });
   });
 });

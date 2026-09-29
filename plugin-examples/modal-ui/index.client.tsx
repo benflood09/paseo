@@ -4,8 +4,10 @@ import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { ModalExamples } from "./client/examples";
 
 function ModalExamplesItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
-  const open = useCallback(() => openScreen("main"), [openScreen]);
-  return <SidebarRow icon="PanelsTopLeft" active={currentScreen === "main"} onPress={open} />;
+  const open = useCallback(() => openScreen({ screenId: "main" }), [openScreen]);
+  return (
+    <SidebarRow icon="PanelsTopLeft" active={currentScreen?.screenId === "main"} onPress={open} />
+  );
 }
 
 export default function contribute(plugin: PluginClientContext) {

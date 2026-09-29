@@ -1,10 +1,12 @@
 import type {
   PluginHostProps,
+  PluginOpenScreenInput,
   PluginPopoverProps,
+  PluginScreenLocation,
   PluginSidebarItemProps,
 } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { router, usePathname } from "expo-router";
+import { router, useGlobalSearchParams, usePathname } from "expo-router";
 import { useCallback, useMemo, useState, type ComponentType, type RefObject } from "react";
 import { type View } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
@@ -29,14 +31,14 @@ import {
 } from "../popover";
 import { buildPluginSurfaceRoute, hostIdFromPathname } from "../routes";
 import type { PluginSidebarGroup, PluginSidebarTarget } from "../sidebar-groups";
-import { currentPluginScreen } from "../surface-contribution";
+import { currentPluginScreen, parsePluginOpenScreenInput } from "../surface-contribution";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import type { PluginSidebarSection } from "../types";
 import { SidebarItemFrameContext, type SidebarItemFrame } from "./frame";
 import { resolvePluginPlatform } from "../platform";
 
-export { SidebarRow } from "./kit";
+export { SidebarRow, SidebarSeparator } from "./kit";
 
 type PopoverContent = ComponentType<PluginPopoverProps>;
 
@@ -81,6 +83,7 @@ function PluginSidebarItemHost({
   theme,
 }: PluginSidebarItemHostProps & { theme: PluginTheme }) {
   const pathname = usePathname();
+  const routeParams = useGlobalSearchParams();
   const { plugin, item } = selectTarget(group, hostIdFromPathname(pathname));
   const client = useHostRuntimeClient(plugin.serverId);
   const toast = useToast();
@@ -122,7 +125,7 @@ function PluginSidebarItemHost({
             item={item}
             section={section}
             theme={theme}
-            currentScreen={currentPluginScreen(plugin, pathname)}
+            currentScreen={currentPluginScreen(plugin, pathname, routeParams)}
             environment={environment}
             popover={popover}
             showPopover={showPopover}
@@ -155,14 +158,15 @@ function SidebarItemContent({
   item: PluginSidebarTarget["item"];
   section: PluginSidebarSection;
   theme: PluginTheme;
-  currentScreen: string | null;
+  currentScreen: PluginScreenLocation | null;
   environment: PluginEnvironment;
   popover: PopoverContent | null;
   showPopover: (content: PopoverContent | null) => void;
   fallbackAnchorRef: RefObject<View | null>;
   onBeforeNavigate?: () => void;
 }) {
-  const { anchorRef, anchorToFallback } = useSidebarPopoverAnchor("PluginSidebarItem");
+  const { anchorTo, offerAnchor, releaseAnchor, anchorToFallback } =
+    useSidebarPopoverAnchor("PluginSidebarItem");
   const hosts = useHosts();
   const compact = useIsCompactFormFactor();
   const hostLabel =
@@ -177,15 +181,18 @@ function SidebarItemContent({
     [compact, hostLabel, plugin.serverId, theme],
   );
   const openScreen = useCallback(
-    (screenId: string) => {
-      if (!plugin.surfaces.some((surface) => surface.id === screenId)) {
-        throw new Error(`Plugin screen is unavailable: ${screenId}`);
-      }
+    (input: PluginOpenScreenInput) => {
+      const { screenId, params } = parsePluginOpenScreenInput(plugin, input);
       rememberPluginContributionHost(group.key, plugin.serverId);
       showPopover(null);
       onBeforeNavigate?.();
       router.push(
-        buildPluginSurfaceRoute(plugin.serverId, plugin.id, { kind: "surface", id: screenId }),
+        buildPluginSurfaceRoute(
+          plugin.serverId,
+          plugin.id,
+          { kind: "surface", id: screenId },
+          params,
+        ),
       );
     },
     [group.key, onBeforeNavigate, plugin, showPopover],
@@ -206,9 +213,11 @@ function SidebarItemContent({
         section === "header"
           ? `plugin-sidebar-${plugin.id}-${item.id}`
           : `plugin-sidebar-${section}-${plugin.id}-${item.id}`,
-      anchorRef,
+      anchorTo,
+      offerAnchor,
+      releaseAnchor,
     }),
-    [anchorRef, item.id, item.title, plugin.id, section],
+    [anchorTo, item.id, item.title, offerAnchor, plugin.id, releaseAnchor, section],
   );
   const itemProps = useMemo<PluginSidebarItemProps>(
     () => ({ ...hostProps, currentScreen, openScreen, openPopover }),

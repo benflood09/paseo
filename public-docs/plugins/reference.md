@@ -721,8 +721,8 @@ function MainItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   return (
     <SidebarRow
       icon="Blocks"
-      active={currentScreen === "main"}
-      onPress={() => openScreen("main")}
+      active={currentScreen?.screenId === "main"}
+      onPress={() => openScreen({ screenId: "main" })}
     />
   );
 }
@@ -741,9 +741,16 @@ export default function contribute(client: PluginClientContext) {
 | `theme`      | Typed `PluginTheme` color tokens for the active Paseo theme.                                                                                                                                                                                                                                                                      |
 | `host`       | Selected host `id` and display `label`.                                                                                                                                                                                                                                                                                           |
 | `layout`     | `compact` and the `ios`, `android`, or `web` platform.                                                                                                                                                                                                                                                                            |
+| `params`     | The params the screen was opened with, as string keys and values. `{}` when none.                                                                                                                                                                                                                                                 |
 | `navigation` | Optional client navigation. `openAgent({ agentId, serverId? })` and `openWorkspace({ workspaceId, serverId? })` open targets on `serverId`, or on the selected host when omitted. `openBrowser({ url, workspaceId, serverId? })` is available only on Electron; see [links and browsers](#external-links-and-workspace-browsers). |
 
 Paseo owns the route, header, close action, host picker, error boundary, and query client. The plugin owns the screen body.
+
+`openScreen({ screenId, params })` opens a screen with params, such as the bot a bot screen shows.
+Params live in the screen's URL query, so a reload, back and forward, and a link to the screen keep
+them. Keys and values must be strings. Anything else throws, and so do the route's own keys:
+`serverId`, `pluginId`, `contributionKind`, and `contributionId`. Opening the same screen with other
+params shows the new params.
 
 ### Sidebar items
 
@@ -755,23 +762,24 @@ label of `SidebarRow`. Settings shows a generic plugin icon for every plugin ite
 
 `Component` receives `PluginSidebarItemProps`:
 
-| Field                     | Meaning                                                                                        |
-| ------------------------- | ---------------------------------------------------------------------------------------------- |
-| `theme`, `host`, `layout` | As in `PluginScreenProps`.                                                                     |
-| `currentScreen`           | The ID of this plugin's screen open on the item's host, or `null`.                             |
-| `openScreen(id)`          | Opens one of this plugin's screens. Unknown IDs throw.                                         |
-| `openPopover(Content)`    | Opens `Content` anchored to the item on wide layouts and as a bottom sheet on compact layouts. |
+| Field                     | Meaning                                                                                       |
+| ------------------------- | --------------------------------------------------------------------------------------------- |
+| `theme`, `host`, `layout` | As in `PluginScreenProps`.                                                                    |
+| `currentScreen`           | `{ screenId, params }` of this plugin's screen open on the item's host, or `null`.            |
+| `openScreen(input)`       | Opens one of this plugin's screens: `{ screenId, params? }`. Unknown screen IDs throw.        |
+| `openPopover(Content)`    | Opens `Content` anchored to the pressed row on wide layouts and as a bottom sheet on compact. |
 
-`Content` receives `theme`, `host`, `layout`, `close()`, and `openScreen(id)`. Opening a screen
+`Content` receives `theme`, `host`, `layout`, `close()`, and `openScreen(input)`. Opening a screen
 closes the popover.
 
 Render the item with the sidebar kit from `@getpaseo/plugin/client/ui`:
 
-| Component    | Props and behavior                                                                                                                                                                                                      |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SidebarRow` | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. |
+| Component          | Props and behavior                                                                                                                                                                                                                                                           |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SidebarRow`       | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`, `id`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. `id` tells rows of one item apart in test IDs. |
+| `SidebarSeparator` | No props. The sidebar's separator line, between groups of rows.                                                                                                                                                                                                              |
 
-Popovers anchor to the `SidebarRow` the item renders.
+A popover opened from a row's `onPress` anchors to that row.
 
 ```tsx
 import type { PluginSidebarItemProps, PluginPopoverProps } from "@getpaseo/plugin/client";
@@ -780,7 +788,7 @@ import { Pressable, Text } from "react-native";
 
 function SyncDetails({ theme, close, openScreen }: PluginPopoverProps) {
   return (
-    <Pressable onPress={() => openScreen("sync")}>
+    <Pressable onPress={() => openScreen({ screenId: "sync" })}>
       <Text style={{ color: theme.colors.foreground }}>Open sync history</Text>
     </Pressable>
   );
@@ -794,6 +802,75 @@ client.addSidebarFooterItem({ id: "sync", title: "Sync", Component: SyncItem });
 ```
 
 An item that throws renders nothing; the rest of the sidebar keeps working.
+
+#### Several rows in one item
+
+An item's `Component` may return a fragment, an array, or `null`, so one item can render a list
+that changes at runtime. Settings lists the item once, and it moves and hides as one block. This
+item shows a row per bot and opens the bot's screen with its ID as a param:
+
+```tsx
+import type {
+  PluginClientContext,
+  PluginScreenProps,
+  PluginSidebarItemProps,
+} from "@getpaseo/plugin/client";
+import { SidebarRow, SidebarSeparator } from "@getpaseo/plugin/client/ui";
+import { Text } from "react-native";
+import { useBots } from "./client/bots";
+
+function BotScreen({ theme, params }: PluginScreenProps) {
+  return <Text style={{ color: theme.colors.foreground }}>Bot {params.botId}</Text>;
+}
+
+function BotsItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
+  const bots = useBots();
+  const openBotId = currentScreen?.screenId === "bot" ? currentScreen.params.botId : null;
+  return (
+    <>
+      <SidebarSeparator />
+      {bots.map((bot) => (
+        <SidebarRow
+          key={bot.id}
+          id={bot.id}
+          icon="Bot"
+          label={bot.name}
+          active={bot.id === openBotId}
+          onPress={() => openScreen({ screenId: "bot", params: { botId: bot.id } })}
+        />
+      ))}
+    </>
+  );
+}
+
+export default function contribute(client: PluginClientContext) {
+  client.addScreen("bot", BotScreen);
+  client.addSidebarHeaderItem({ id: "bots", title: "Bots", Component: BotsItem });
+  return () => {};
+}
+```
+
+#### Add and remove items at runtime
+
+`addSidebarHeaderItem` and `addSidebarFooterItem` work after the entry returns. Each returns a
+remover; the item appears and disappears without a reload:
+
+```tsx
+let removeAlerts: (() => void) | null = null;
+
+function showAlerts(client: PluginClientContext) {
+  removeAlerts ??= client.addSidebarFooterItem({
+    id: "alerts",
+    title: "Alerts",
+    Component: AlertsItem,
+  });
+}
+
+function hideAlerts() {
+  removeAlerts?.();
+  removeAlerts = null;
+}
+```
 
 ## Host UI
 
@@ -1456,7 +1533,7 @@ Every callback receives:
 | `context`                 | All                 | Matching discriminator.                                                                                         |
 | `paseo`                   | All                 | Selected host's existing `PaseoApi`.                                                                            |
 | `rpc(contract, input)`    | All                 | Typed call to this installation's daemon-side plugin handler.                                                   |
-| `openScreen(id)`          | All                 | Opens one of this plugin's registered screens.                                                                  |
+| `openScreen(input)`       | All                 | Opens one of this plugin's registered screens: `{ screenId, params? }`.                                         |
 | `workspace`               | Workspace and agent | Synchronous workspace snapshot.                                                                                 |
 | `agent`                   | Agent               | Synchronous matching agent snapshot.                                                                            |
 | `openPanel(id, options?)` | Workspace and agent | Opens a registered panel in the callback's current context. Pass `{ location: "explorer" }` to target Explorer. |

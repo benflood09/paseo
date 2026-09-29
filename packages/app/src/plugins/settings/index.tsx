@@ -4,7 +4,7 @@ import { Platform, Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { router } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
-import type { PluginHostProps } from "@getpaseo/plugin/client";
+import type { PluginHostProps, PluginScreenParams } from "@getpaseo/plugin/client";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -120,13 +120,15 @@ function SettingsContent({
         renderError={renderError}
       >
         <PluginRuntimeBoundary plugin={plugin} client={client}>
-          <Component theme={theme} layout={layout} host={host} />
+          <Component theme={theme} layout={layout} host={host} params={NO_PARAMS} />
         </PluginRuntimeBoundary>
       </SurfaceErrorBoundary>
     </View>
   );
 }
 const ThemedSettingsContent = withUnistyles(SettingsContent);
+// Settings routes carry no screen params.
+const NO_PARAMS: PluginScreenParams = {};
 const themeMapping = (theme: Theme) => ({ theme: toPluginTheme(theme) });
 export function PluginSettingsContent({
   onBackToPlugins,
