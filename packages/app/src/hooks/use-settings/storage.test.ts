@@ -246,6 +246,8 @@ describe("loadAppSettingsFromStorage", () => {
         [APP_SETTINGS_KEY]: JSON.stringify({
           sidebarFooterItems: [
             { key: "help", visible: false },
+            // The retired Usage footer button; the sidebar model skips it.
+            { key: "usage", visible: true },
             { key: "plugin:sync:status", visible: true },
           ],
         }),
@@ -256,6 +258,7 @@ describe("loadAppSettingsFromStorage", () => {
 
     expect(result.sidebarFooterItems).toEqual([
       { key: "help", visible: false },
+      { key: "usage", visible: true },
       { key: "plugin:sync:status", visible: true },
     ]);
   });

@@ -281,7 +281,6 @@ describe("footer section", () => {
       { key: "usage-summary", visible: true },
       { key: "hosts", visible: true },
       { key: "import", visible: true },
-      { key: "usage", visible: true },
       { key: "help", visible: true },
       { key: syncKey, visible: true },
     ]);
@@ -302,7 +301,24 @@ describe("footer section", () => {
       { key: "usage-summary", visible: true },
       { key: "hosts", visible: true },
       { key: "import", visible: true },
-      { key: "usage", visible: true },
+    ]);
+  });
+
+  it("ignores the retired Usage footer button stored in footer preferences", () => {
+    const items = resolveSidebarNavItems({
+      section: "footer",
+      pluginGroups: [],
+      preferences: [
+        { key: "usage", visible: true },
+        { key: "help", visible: false },
+      ],
+    });
+
+    expect(summarize(items)).toEqual([
+      { key: "help", visible: false },
+      { key: "usage-summary", visible: true },
+      { key: "hosts", visible: true },
+      { key: "import", visible: true },
     ]);
   });
 
@@ -326,9 +342,8 @@ describe("footer section", () => {
       { key: syncKey, visible: false },
       { key: "usage-summary", visible: true },
       { key: "hosts", visible: false },
-      { key: "import", visible: true },
       { key: "help", visible: true },
-      { key: "usage", visible: true },
+      { key: "import", visible: true },
     ]);
   });
 });

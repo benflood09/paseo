@@ -1,14 +1,14 @@
-import { RefreshCw } from "lucide-react-native";
+import { RotateCw } from "lucide-react-native";
 import { useCallback, useMemo } from "react";
 import { Text, View, type StyleProp, type TextStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
+  extraMutedIconColorMapping,
   iconButtonChromeGlyphSize,
-  mutedIconColorMapping,
   smallIconButtonChromeFrameSize,
 } from "@/components/ui/icon-button-chrome";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
-import { ToolbarButton } from "@/components/ui/pane-content-toolbar";
+import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
@@ -27,7 +27,7 @@ function statusText(report: UsageReport): string | null {
   return report.status === "error" ? "Error" : "Unavailable";
 }
 
-const ThemedRefreshIcon = withUnistyles(RefreshCw);
+const ThemedRotateCw = withUnistyles(RotateCw);
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 
 export function UsageCard({
@@ -186,7 +186,7 @@ function UsageRefreshButton({
   compact: boolean;
 }) {
   const isPending = refreshState === "pending";
-  const iconSize = iconButtonChromeGlyphSize("small", compact);
+  const iconSize = paneContentToolbarIconSize(compact);
   const freshness = useMemo(
     () => (
       <UsageFreshness
@@ -209,9 +209,9 @@ function UsageRefreshButton({
       testID="usage-refresh"
     >
       {isPending ? (
-        <ThemedLoadingSpinner size={iconSize} uniProps={mutedIconColorMapping} />
+        <ThemedLoadingSpinner size={iconSize} uniProps={extraMutedIconColorMapping} />
       ) : (
-        <ThemedRefreshIcon size={iconSize} uniProps={mutedIconColorMapping} />
+        <ThemedRotateCw size={iconSize} uniProps={extraMutedIconColorMapping} />
       )}
     </ToolbarButton>
   );

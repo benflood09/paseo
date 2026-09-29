@@ -89,7 +89,7 @@ export function SidebarHeaderRow({
           accessibilityLabel={accessibilityLabel ?? label}
           accessibilityState={isActive ? SELECTED_STATE : undefined}
           aria-selected={isActive}
-          style={styles.button}
+          style={variant === "inline" ? styles.buttonInline : styles.button}
         >
           {ThemedIcon ? (
             <ThemedIcon
@@ -155,6 +155,17 @@ const styles = StyleSheet.create((theme) => ({
     // Match the project rows' inner padding so the icons align on one vertical
     // edge with the list below.
     paddingHorizontal: theme.spacing[2],
+  },
+  // Footer rows put their icon on the footer's rail: where a 16px icon sits in a 28px button.
+  buttonInline: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    minHeight: 28,
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1.5],
   },
   iconSpacer: { width: ICON_SIZE.md, height: ICON_SIZE.md },
   iconSpacerCompact: { width: ICON_SIZE.sm, height: ICON_SIZE.sm },

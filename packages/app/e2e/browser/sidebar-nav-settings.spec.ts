@@ -103,27 +103,26 @@ test.describe("Sidebar items in Appearance settings", () => {
       await expect(page.getByTestId("sidebar-nav-section-footer-info")).toHaveAccessibleName(
         "About Footer",
       );
-      await expectFooterSettingsKeys(page, ["usage-summary", "hosts", "import", "usage", "help"]);
+      await expectFooterSettingsKeys(page, ["usage-summary", "hosts", "import", "help"]);
       await leaveSettings(page);
-      await expectFooterOrder(page, ["hosts", "import", "usage", "help"]);
+      await expectFooterOrder(page, ["usage-summary", "hosts", "import", "help"]);
     });
 
-    await test.step("moving Usage up and hiding Import changes the footer", async () => {
+    await test.step("moving Help up and hiding Import changes the footer", async () => {
       await openSidebarNavSettings(page);
-      await moveFooterItemUp(page, "usage");
-      await moveFooterItemUp(page, "usage");
+      await moveFooterItemUp(page, "help");
+      await moveFooterItemUp(page, "help");
       await setFooterItemVisible(page, "import", false);
-      await expectFooterSettingsKeys(page, ["usage-summary", "usage", "hosts", "import", "help"]);
+      await expectFooterSettingsKeys(page, ["usage-summary", "help", "hosts", "import"]);
       await expectStoredSidebarFooter(page, [
         { key: "usage-summary", visible: true },
-        { key: "usage", visible: true },
+        { key: "help", visible: true },
         { key: "hosts", visible: true },
         { key: "import", visible: false },
-        { key: "help", visible: true },
       ]);
       await leaveSettings(page);
       await expectFooterItemHidden(page, "import");
-      await expectFooterOrder(page, ["usage", "hosts", "help"]);
+      await expectFooterOrder(page, ["usage-summary", "help", "hosts"]);
       await expect(page.locator('[data-testid="sidebar-add-project"]:visible')).toBeVisible();
       await expect(page.locator('[data-testid="sidebar-settings"]:visible')).toBeVisible();
     });
@@ -131,7 +130,7 @@ test.describe("Sidebar items in Appearance settings", () => {
     await test.step("the footer keeps that shape across a reload", async () => {
       await page.reload();
       await expectFooterItemHidden(page, "import");
-      await expectFooterOrder(page, ["usage", "hosts", "help"]);
+      await expectFooterOrder(page, ["usage-summary", "help", "hosts"]);
     });
   });
 

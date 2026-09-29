@@ -1,13 +1,19 @@
-import { RefreshCw } from "lucide-react-native";
+import { RotateCw } from "lucide-react-native";
 import { View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { HostSwitcher } from "@/components/hosts/host-switcher";
-import { Button } from "@/components/ui/button";
+import { extraMutedIconColorMapping } from "@/components/ui/icon-button-chrome";
+import { LoadingSpinner } from "@/components/ui/loading-spinner";
+import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import { usageCopy } from "./copy";
 import type { UsageDisplay } from "./display";
 import { UsageDisplayToggle } from "./display-toggle";
 import type { UsageHost } from "./model";
 import type { UsageView } from "./types";
+
+const ThemedRotateCw = withUnistyles(RotateCw);
+const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 
 /** The hosts to choose between, and which one is shown. */
 export interface UsageHostSelection {
@@ -33,6 +39,8 @@ export function UsageControls({
   hostSelection?: UsageHostSelection;
 }) {
   const busy = view.kind === "loading" || (view.kind === "ready" && view.isRefreshing);
+  const compact = useIsCompactFormFactor();
+  const iconSize = paneContentToolbarIconSize(compact);
   return (
     <View style={styles.controls}>
       {hostSelection && hostSelection.hosts.length > 1 ? (
@@ -48,16 +56,20 @@ export function UsageControls({
       {view.kind === "unavailable" ? null : (
         <>
           <UsageDisplayToggle display={display} />
-          <Button
-            variant="ghost"
-            size="xs"
-            leftIcon={RefreshCw}
-            loading={busy}
+          {/* The Changes panel's refresh: an icon, with the label in its tooltip. */}
+          <ToolbarButton
+            label={busy ? usageCopy.refreshing : usageCopy.refresh}
+            compact={compact}
+            disabled={busy}
             onPress={onRefresh}
-            accessibilityLabel={usageCopy.refresh}
+            testID="usage-refresh-all"
           >
-            {busy ? usageCopy.refreshing : usageCopy.refresh}
-          </Button>
+            {busy ? (
+              <ThemedLoadingSpinner size={iconSize} uniProps={extraMutedIconColorMapping} />
+            ) : (
+              <ThemedRotateCw size={iconSize} uniProps={extraMutedIconColorMapping} />
+            )}
+          </ToolbarButton>
         </>
       )}
     </View>

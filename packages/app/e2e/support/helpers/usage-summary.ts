@@ -61,13 +61,18 @@ export function usageSummary(page: Page): Locator {
   return visible(page, "sidebar-usage-summary");
 }
 
-export function usageIcon(page: Page): Locator {
+/** The plain "Usage" row the summary shows while no pinned window has data. */
+export function usageRow(page: Page): Locator {
   return visible(page, "sidebar-usage");
 }
 
-/** The summary's expanded view, in its popover or its bottom sheet. */
-export function usageExpanded(page: Page): Locator {
+/** The compact usage sheet the summary opens. */
+export function usageSheet(page: Page): Locator {
   return visible(page, "usage-expanded");
+}
+
+export async function expectOnUsageScreen(page: Page): Promise<void> {
+  await expect(page).toHaveURL(/\/usage$/);
 }
 
 export async function expectSummary(page: Page, percents: string[]): Promise<void> {

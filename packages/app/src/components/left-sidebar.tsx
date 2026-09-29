@@ -1,5 +1,5 @@
 import { router } from "expo-router";
-import { FolderPlus, Gauge, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
+import { FolderPlus, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -51,11 +51,7 @@ import { usePanelStore } from "@/stores/panel-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
 import { MobilePanelOverlay } from "@/mobile-panels/presentation";
-import {
-  buildSettingsAddHostRoute,
-  buildSettingsRoute,
-  buildUsageRoute,
-} from "@/utils/host-routes";
+import { buildSettingsAddHostRoute, buildSettingsRoute } from "@/utils/host-routes";
 import { openHostOverview } from "@/navigation/settings-navigation";
 import { UsageSummary } from "@/usage";
 import { SidebarAgentListSkeleton } from "./sidebar-agent-list-skeleton";
@@ -386,24 +382,6 @@ function SidebarHostPicker({
   );
 }
 
-function SidebarUsageButton() {
-  const { t } = useTranslation();
-  const isCompactLayout = useIsCompactFormFactor();
-  const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
-  const handlePress = useCallback(() => {
-    if (isCompactLayout) showMobileAgent();
-    router.push(buildUsageRoute());
-  }, [isCompactLayout, showMobileAgent]);
-  return (
-    <SidebarButton
-      onPress={handlePress}
-      testID="sidebar-usage"
-      label={t("settings.hostSections.usage")}
-      icon={Gauge}
-    />
-  );
-}
-
 function IconTooltipContent({
   label,
   shortcutKeys,
@@ -511,8 +489,6 @@ function BuiltinFooterItem({
           icon={Import}
         />
       );
-    case "usage":
-      return <SidebarUsageButton />;
     case "help":
       return <SidebarHelpMenu />;
   }

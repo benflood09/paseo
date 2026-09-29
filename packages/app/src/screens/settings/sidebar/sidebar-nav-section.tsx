@@ -11,7 +11,6 @@ import {
   Gauge,
   History,
   Import,
-  Percent,
   Plus,
   Search,
   Server,
@@ -47,10 +46,9 @@ const BUILTIN_ICONS: Record<BuiltinSidebarItemId, LucideIcon> = {
   history: History,
   search: Search,
   schedules: CalendarClock,
-  "usage-summary": Percent,
+  "usage-summary": Gauge,
   hosts: Server,
   import: Import,
-  usage: Gauge,
   help: CircleHelp,
 };
 

@@ -1,14 +1,15 @@
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import { router } from "expo-router";
+import { Gauge } from "lucide-react-native";
+import { useCallback, useMemo, useState } from "react";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
-import {
-  SidebarPopoverRoot,
-  SidebarPopoverSurface,
-  useSidebarPopoverAnchor,
-} from "@/components/sidebar/sidebar-popover";
+import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
+import { SidebarPopoverRoot, SidebarPopoverSurface } from "@/components/sidebar/sidebar-popover";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { usageCopy } from "./copy";
+import { usePanelStore } from "@/stores/panel-store";
+import { buildUsageRoute } from "@/utils/host-routes";
 import { UsageControls } from "./controls";
+import { usageCopy } from "./copy";
 import { useUsagePreferences, type UsageDisplay } from "./display";
 import { useSummaryHostId } from "./hosts";
 import type { UsagePreferences } from "./preferences";
@@ -19,18 +20,22 @@ import type { UsageReportEntry } from "./types";
 import { UsageBody } from "./usage-section";
 
 const NO_REPORTS: UsageReportEntry[] = [];
+const NO_ITEMS: UsageSummaryItem[] = [];
 
 /**
- * The sidebar footer's usage summary: each pinned window's source icon and percent. Pressing it
- * opens the expanded view. It renders nothing until a pinned window has data.
+ * The sidebar footer's usage entry: each pinned window's source icon and percent, or a plain
+ * "Usage" row while no pinned window has data. Pressing it opens the Usage screen; on compact
+ * layouts it opens the usage sheet instead.
  */
 export function UsageSummary() {
   const { preferences, display } = useUsagePreferences();
   const serverId = useSummaryHostId();
-  // Without pins there is nothing to show, so the host is not asked for reports.
-  if (!serverId || preferences.pinned.length === 0) return null;
+  // Without pins there is nothing to summarize, so the host is not asked for reports.
+  if (!serverId || preferences.pinned.length === 0) {
+    return <UsageEntry serverId={serverId} items={NO_ITEMS} display={display} />;
+  }
   return (
-    <HostUsageSummary
+    <PinnedUsageSummary
       key={serverId}
       serverId={serverId}
       preferences={preferences}
@@ -39,7 +44,7 @@ export function UsageSummary() {
   );
 }
 
-function HostUsageSummary({
+function PinnedUsageSummary({
   serverId,
   preferences,
   display,
@@ -48,33 +53,85 @@ function HostUsageSummary({
   preferences: UsagePreferences;
   display: UsageDisplay;
 }) {
-  const { view, refresh } = useHostUsage(serverId);
+  const { view } = useHostUsage(serverId);
   const reports = view.kind === "ready" ? view.reports : NO_REPORTS;
   const items = useMemo(() => resolveUsageSummary(reports, preferences), [preferences, reports]);
-  const [open, setOpen] = useState(false);
-  const openPopover = useCallback(() => setOpen(true), []);
-  // The compact sheet has its own title row, so the controls join it there.
+  return <UsageEntry serverId={serverId} items={items} display={display} />;
+}
+
+function useOpenUsageScreen(): () => void {
   const isCompact = useIsCompactFormFactor();
+  const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
+  return useCallback(() => {
+    if (isCompact) showMobileAgent();
+    router.push(buildUsageRoute());
+  }, [isCompact, showMobileAgent]);
+}
+
+function UsageEntry({
+  serverId,
+  items,
+  display,
+}: {
+  serverId: string | null;
+  items: readonly UsageSummaryItem[];
+  display: UsageDisplay;
+}) {
+  const isCompact = useIsCompactFormFactor();
+  const openUsageScreen = useOpenUsageScreen();
+  const [open, setOpen] = useState(false);
+  // The sheet mounts on first open, so an unopened sidebar never asks the host for reports.
+  const [sheetMounted, setSheetMounted] = useState(false);
+  // Without a host there are no reports to show, so compact goes to the screen, which says so.
+  const sheetServerId = isCompact ? serverId : null;
+  const handlePress = useCallback(() => {
+    if (!sheetServerId) {
+      openUsageScreen();
+      return;
+    }
+    setSheetMounted(true);
+    setOpen(true);
+  }, [openUsageScreen, sheetServerId]);
+
+  const trigger =
+    items.length > 0 ? (
+      <SummaryTrigger items={items} onPress={handlePress} />
+    ) : (
+      <SidebarHeaderRow
+        variant="inline"
+        icon={Gauge}
+        label={usageCopy.title}
+        onPress={handlePress}
+        testID="sidebar-usage"
+      />
+    );
+  if (!sheetServerId) return trigger;
+  return (
+    <SidebarPopoverRoot open={open} onOpenChange={setOpen}>
+      {trigger}
+      {sheetMounted ? <UsageSheet serverId={sheetServerId} display={display} /> : null}
+    </SidebarPopoverRoot>
+  );
+}
+
+/** The compact usage sheet: the host's reports with pins, and the controls in its title row. */
+function UsageSheet({ serverId, display }: { serverId: string; display: UsageDisplay }) {
+  const { view, refresh } = useHostUsage(serverId);
   const controls = useMemo(
     () => <UsageControls view={view} display={display} onRefresh={refresh} />,
     [display, refresh, view],
   );
-  if (items.length === 0) return null;
   return (
-    <SidebarPopoverRoot open={open} onOpenChange={setOpen}>
-      <SummaryTrigger items={items} onPress={openPopover} />
-      <SidebarPopoverSurface
-        section="footer"
-        title={usageCopy.title}
-        sheetTrailing={isCompact ? controls : null}
-        testID="sidebar-usage-summary-popover"
-      >
-        <View style={styles.expanded} testID="usage-expanded">
-          {isCompact ? null : <PopoverTitleRow controls={controls} />}
-          <UsageBody serverId={serverId} view={view} display={display} onRefresh={refresh} />
-        </View>
-      </SidebarPopoverSurface>
-    </SidebarPopoverRoot>
+    <SidebarPopoverSurface
+      section="footer"
+      title={usageCopy.title}
+      sheetTrailing={controls}
+      testID="sidebar-usage-sheet"
+    >
+      <View style={styles.sheetBody} testID="usage-expanded">
+        <UsageBody serverId={serverId} view={view} display={display} onRefresh={refresh} />
+      </View>
+    </SidebarPopoverSurface>
   );
 }
 
@@ -93,11 +150,8 @@ function SummaryTrigger({
   items: readonly UsageSummaryItem[];
   onPress: () => void;
 }) {
-  const { anchorRef } = useSidebarPopoverAnchor("UsageSummary");
   return (
     <Pressable
-      ref={anchorRef}
-      collapsable={false}
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={summaryLabel(items)}
@@ -113,16 +167,6 @@ function SummaryTrigger({
         </View>
       ))}
     </Pressable>
-  );
-}
-
-/** The popover's title row; on compact the sheet header plays this part. */
-function PopoverTitleRow({ controls }: { controls: ReactNode }) {
-  return (
-    <View style={styles.titleRow}>
-      <Text style={styles.title}>{usageCopy.title}</Text>
-      {controls}
-    </View>
   );
 }
 
@@ -155,19 +199,8 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.sm,
     fontVariant: ["tabular-nums"],
   },
-  expanded: {
+  sheetBody: {
     padding: theme.spacing[3],
     gap: theme.spacing[3],
-  },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing[4],
-  },
-  title: {
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
   },
 }));

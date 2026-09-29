@@ -152,9 +152,10 @@ async function expectVerticalOrder(
 
 /** Persisted footer key -> the testID the app shell renders that item with. */
 const SHELL_FOOTER_TEST_IDS = {
+  // With nothing pinned the usage summary is the plain Usage row.
+  "usage-summary": "sidebar-usage",
   hosts: "sidebar-hosts-trigger",
   import: "sidebar-import-session",
-  usage: "sidebar-usage",
   help: "sidebar-help",
 } as const;
 

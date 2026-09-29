@@ -6,7 +6,7 @@ export type SidebarSection = PluginSidebarSection;
 /** Each section's built-in items in their default order. Add project and Settings are fixed. */
 export const BUILTIN_SIDEBAR_ITEM_IDS = {
   header: ["new-workspace", "history", "search", "schedules"],
-  footer: ["usage-summary", "hosts", "import", "usage", "help"],
+  footer: ["usage-summary", "hosts", "import", "help"],
 } as const satisfies Record<SidebarSection, readonly string[]>;
 
 export type BuiltinSidebarItemId<Section extends SidebarSection = SidebarSection> =
@@ -45,7 +45,6 @@ const BUILTIN_LABEL_KEYS: Record<BuiltinSidebarItemId, string> = {
   "usage-summary": "sidebar.footer.usageSummary",
   hosts: "sidebar.actions.hosts",
   import: "importSession.title",
-  usage: "settings.hostSections.usage",
   help: "sidebar.help.trigger",
 };
 
@@ -66,7 +65,6 @@ const BUILTIN_SHORTCUT_ACTIONS: Record<BuiltinSidebarItemId, string | null> = {
   "usage-summary": null,
   hosts: null,
   import: null,
-  usage: null,
   help: null,
 };
 
