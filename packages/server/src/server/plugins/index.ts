@@ -568,7 +568,6 @@ export class PluginService {
           label: source.label,
           icon: source.icon,
           discover: async () => {
-            if (!source.discover) return [];
             const result = await this.runtime.discoverUsage(pluginId, source.id);
             if (!Array.isArray(result))
               throw new Error(`Invalid usage discovery from ${source.id}`);

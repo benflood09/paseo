@@ -3011,8 +3011,6 @@ export class Session {
         return this.usageSession.handleLegacyList(msg);
       case "usage.list_reports.request":
         return this.usageSession.handleListReports(msg);
-      case "agent.resolve_usage_report.request":
-        return this.usageSession.handleResolveAgentReport(msg);
       default:
         return undefined;
     }

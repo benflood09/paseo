@@ -55,22 +55,3 @@ test("surfaces a legacy usage-list failure as an rpc_error envelope", async () =
     payload: { requestId: "u1", code: "provider_usage_list_failed" },
   });
 });
-
-test("legacy agent usage report request returns null without an agent or plugin runtime", () => {
-  const emitted: SessionOutboundMessage[] = [];
-  const usage = new UsageSession({
-    emit: (message) => emitted.push(message),
-    logger: pino({ level: "silent" }),
-  });
-  usage.handleResolveAgentReport({
-    type: "agent.resolve_usage_report.request",
-    requestId: "missing",
-    agentId: "missing",
-  });
-  expect(emitted).toEqual([
-    {
-      type: "agent.resolve_usage_report.response",
-      payload: { requestId: "missing", reportId: null },
-    },
-  ]);
-});

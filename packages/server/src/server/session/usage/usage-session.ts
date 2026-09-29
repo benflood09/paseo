@@ -35,16 +35,6 @@ export class UsageSession {
     }
   }
 
-  // COMPAT(agentUsageReport): added in v0.10.0, remove after 2027-03-29
-  async handleResolveAgentReport(
-    msg: Extract<SessionInboundMessage, { type: "agent.resolve_usage_report.request" }>,
-  ): Promise<void> {
-    this.options.emit({
-      type: "agent.resolve_usage_report.response",
-      payload: { requestId: msg.requestId, reportId: null },
-    });
-  }
-
   // COMPAT(providerUsageList): added in v0.9.3, remove after 2027-03-26.
   async handleLegacyList(
     msg: Extract<SessionInboundMessage, { type: "provider.usage.list.request" }>,

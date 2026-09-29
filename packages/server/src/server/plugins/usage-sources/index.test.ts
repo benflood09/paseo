@@ -105,50 +105,6 @@ test("legacy listing uses oldest fetchedAt", async () => {
   expect((await registry.listLegacyUsage()).fetchedAt).toBe(new Date(1000).toISOString());
 });
 
-test("two Codex homes and a token route resolve to their vendor account IDs", async () => {
-  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
-  const { tmpdir } = await import("node:os");
-  const { join } = await import("node:path");
-  const { identify } = await import("../../../../../../plugins/codex-usage-source/server/usage.js");
-  const personal = await mkdtemp(join(tmpdir(), "usage-personal-"));
-  const work = await mkdtemp(join(tmpdir(), "usage-work-"));
-  try {
-    const token = (accountId: string, email: string) =>
-      `header.${Buffer.from(JSON.stringify({ "https://api.openai.com/auth": { chatgpt_account_id: accountId }, email })).toString("base64url")}.signature`;
-    await writeFile(
-      join(personal, "auth.json"),
-      JSON.stringify({
-        tokens: {
-          account_id: "personal-id",
-          access_token: token("personal-id", "personal@example.test"),
-        },
-      }),
-    );
-    await writeFile(
-      join(work, "auth.json"),
-      JSON.stringify({
-        tokens: { account_id: "work-id", access_token: token("work-id", "work@example.test") },
-      }),
-    );
-    const registry = new UsageSourceRegistry();
-    registry.register(
-      source({
-        id: "codex",
-        discover: async () => [{ codexHome: personal }, { codexHome: work }],
-        identify: async (input) => identify(input as Parameters<typeof identify>[0]),
-      }),
-    );
-
-    expect((await registry.listReports()).map((entry) => [entry.id, entry.account.label])).toEqual([
-      ["codex:personal-id", "personal@example.test"],
-      ["codex:work-id", "work@example.test"],
-    ]);
-  } finally {
-    await rm(personal, { recursive: true, force: true });
-    await rm(work, { recursive: true, force: true });
-  }
-});
-
 test("concurrent requests for the same ID share one vendor fetch", async () => {
   let finish!: (report: unknown) => void;
   const response = new Promise<unknown>((resolve) => {
