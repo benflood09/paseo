@@ -1,15 +1,15 @@
 import { router, useLocalSearchParams } from "expo-router";
 import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { ChevronDown, X } from "lucide-react-native";
-import { useCallback, useMemo, useRef, useState, type ComponentType } from "react";
-import { Pressable, Text, View } from "react-native";
+import { X } from "lucide-react-native";
+import { useCallback, useMemo, type ComponentType } from "react";
+import { Text, View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { HeaderIconBadge } from "@/components/headers/header-icon-badge";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { ScreenHeader } from "@/components/headers/screen-header";
 import { ScreenTitle } from "@/components/headers/screen-title";
-import { HostPicker } from "@/components/hosts/host-picker";
+import { HostSwitcher } from "@/components/hosts/host-switcher";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
@@ -36,7 +36,6 @@ const pluginThemeMapping = (theme: Theme) => ({
   theme: toPluginTheme(theme),
 });
 const ThemedX = withUnistyles(X);
-const ThemedChevronDown = withUnistyles(ChevronDown);
 
 function routeParam(value: string | string[] | undefined): string {
   return typeof value === "string" ? value : "";
@@ -95,9 +94,6 @@ function PluginHostSwitcher({
     () => allHosts.filter((host) => serverIds.includes(host.serverId)),
     [allHosts, serverIds],
   );
-  const [open, setOpen] = useState(false);
-  const anchorRef = useRef<View | null>(null);
-  const selectedLabel = hosts.find((host) => host.serverId === serverId)?.label ?? serverId;
   const selectHost = useCallback(
     (nextServerId: string) => {
       rememberPluginContributionHost(`${pluginId}/${identity.kind}/${identity.id}`, nextServerId);
@@ -105,36 +101,18 @@ function PluginHostSwitcher({
     },
     [identity, pluginId],
   );
-  const openPicker = useCallback(() => setOpen(true), []);
   const show = serverIds.length > 1 && hosts.length > 1;
   if (!show) return null;
 
   return (
-    <HostPicker
+    <HostSwitcher
       hosts={hosts}
       value={serverId}
       onSelect={selectHost}
-      open={open}
-      onOpenChange={setOpen}
-      anchorRef={anchorRef}
       title="Choose plugin host"
-      desktopPlacement="bottom-start"
-    >
-      <View ref={anchorRef} collapsable={false}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Plugin host: ${selectedLabel}`}
-          testID="plugin-host-switcher"
-          onPress={openPicker}
-          style={styles.hostSwitcher}
-        >
-          <Text numberOfLines={1} style={styles.hostSwitcherText}>
-            {selectedLabel}
-          </Text>
-          <ThemedChevronDown size={14} uniProps={mutedColorMapping} />
-        </Pressable>
-      </View>
-    </HostPicker>
+      accessibilityLabel="Plugin host"
+      testID="plugin-host-switcher"
+    />
   );
 }
 
@@ -255,20 +233,5 @@ const styles = StyleSheet.create((theme) => ({
   errorText: {
     color: theme.colors.statusDanger,
     padding: theme.spacing[4],
-  },
-  hostSwitcher: {
-    maxWidth: 180,
-    minHeight: 32,
-    paddingHorizontal: theme.spacing[2],
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[1],
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.surface1,
-  },
-  hostSwitcherText: {
-    flexShrink: 1,
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
   },
 }));

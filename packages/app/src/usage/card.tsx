@@ -1,5 +1,5 @@
 import { RefreshCw } from "lucide-react-native";
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { Text, View, type StyleProp, type TextStyle } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import {
@@ -15,10 +15,11 @@ import { isNative } from "@/constants/platform";
 import { useCompactTimeAgo } from "@/hooks/use-time-ago";
 import { UsageBalanceBar } from "./balance-bar";
 import { usageCopy } from "./copy";
+import type { UsageDisplay } from "./display";
 import { formatUsageFreshness, type UsageRefresh } from "./model";
 import { useReportRefresh } from "./queries";
 import { UsageSourceIcon } from "./source-icon";
-import type { UsageReport, UsageReportEntry } from "./types";
+import type { UsageReport, UsageReportEntry, UsageWindow } from "./types";
 import { UsageWindowBar } from "./window-bar";
 
 function statusText(report: UsageReport): string | null {
@@ -32,10 +33,12 @@ const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 export function UsageCard({
   serverId,
   entry,
+  display,
   compact = false,
 }: {
   serverId: string;
   entry: UsageReportEntry;
+  display: UsageDisplay;
   compact?: boolean;
 }) {
   const isCompact = useIsCompactFormFactor();
@@ -62,13 +65,13 @@ export function UsageCard({
   );
 
   return (
-    <View style={containerStyle}>
+    <View style={containerStyle} testID={`usage-report-${entry.id}`}>
       <View style={styles.header}>
         <UsageSourceIcon svg={entry.icon ?? null} size={14} />
         <Text style={styles.name} numberOfLines={1}>
           {entry.sourceLabel}
         </Text>
-        {usage.planLabel ? <StatusBadge label={usage.planLabel} variant="muted" /> : null}
+        {usage.planLabel ? <StatusBadge label={usage.planLabel} variant="muted" size="xs" /> : null}
         <View style={styles.headerSpacer} />
         {status ? (
           <View style={styles.statusRow}>
@@ -94,7 +97,7 @@ export function UsageCard({
       {usage.windows.length > 0 || balances.length > 0 ? (
         <View style={styles.bars}>
           {usage.windows.map((window) => (
-            <UsageWindowBar key={window.id} window={window} />
+            <PinnableWindowBar key={window.id} entry={entry} window={window} display={display} />
           ))}
           {balances.map((balance) => (
             <UsageBalanceBar key={balance.id} balance={balance} />
@@ -138,6 +141,33 @@ export function UsageCard({
         </Text>
       ) : null}
     </View>
+  );
+}
+
+function PinnableWindowBar({
+  entry,
+  window,
+  display,
+}: {
+  entry: UsageReportEntry;
+  window: UsageWindow;
+  display: UsageDisplay;
+}) {
+  const pin = useMemo(
+    () => ({ sourceId: entry.sourceId, windowId: window.id }),
+    [entry.sourceId, window.id],
+  );
+  const { togglePin } = display;
+  const toggle = useCallback(() => togglePin(pin), [pin, togglePin]);
+  return (
+    <UsageWindowBar
+      window={window}
+      displayAs={display.displayAs}
+      pinned={display.isPinned(pin)}
+      onTogglePin={toggle}
+      pinLabel={`${usageCopy.pin} ${entry.sourceLabel} ${window.label}`}
+      pinTestID={`usage-pin-${entry.sourceId}-${window.id}`}
+    />
   );
 }
 

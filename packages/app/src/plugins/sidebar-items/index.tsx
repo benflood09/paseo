@@ -6,9 +6,13 @@ import type {
 import type { PluginTheme } from "@getpaseo/plugin";
 import { router, usePathname } from "expo-router";
 import { useCallback, useMemo, useState, type ComponentType, type RefObject } from "react";
-import type { View } from "react-native";
+import { type View } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
-import { MenuRoot, useMenuContext } from "@/components/ui/menu";
+import {
+  SidebarPopoverRoot,
+  SidebarPopoverSurface,
+  useSidebarPopoverAnchor,
+} from "@/components/sidebar/sidebar-popover";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useToast } from "@/contexts/toast-context";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
@@ -21,7 +25,6 @@ import {
 import {
   PluginEnvironmentProvider,
   PluginPopoverContent,
-  PluginPopoverSurface,
   type PluginEnvironment,
 } from "../popover";
 import { buildPluginSurfaceRoute, hostIdFromPathname } from "../routes";
@@ -39,11 +42,6 @@ type PopoverContent = ComponentType<PluginPopoverProps>;
 
 const pluginThemeMapping = (theme: Theme) => ({ theme: toPluginTheme(theme) });
 
-const POPOVER_PLACEMENT = {
-  header: { side: "right", align: "start" },
-  footer: { side: "top", align: "start" },
-} as const;
-
 function selectTarget(
   group: PluginSidebarGroup,
   currentHostId: string | null,
@@ -57,10 +55,6 @@ function selectTarget(
 
 function renderNothing() {
   return null;
-}
-
-function assignRef(ref: RefObject<View | null>, node: View | null) {
-  Object.assign(ref, { current: node });
 }
 
 interface PluginSidebarItemHostProps {
@@ -121,7 +115,7 @@ function PluginSidebarItemHost({
       renderError={renderNothing}
     >
       <PluginEnvironmentProvider environment={environment}>
-        <MenuRoot compactMode="sheet" open={popoverOpen} onOpenChange={handleOpenChange}>
+        <SidebarPopoverRoot open={popoverOpen} onOpenChange={handleOpenChange}>
           <SidebarItemContent
             group={group}
             plugin={plugin}
@@ -135,7 +129,7 @@ function PluginSidebarItemHost({
             fallbackAnchorRef={fallbackAnchorRef}
             onBeforeNavigate={onBeforeNavigate}
           />
-        </MenuRoot>
+        </SidebarPopoverRoot>
       </PluginEnvironmentProvider>
     </SurfaceErrorBoundary>
   );
@@ -168,7 +162,7 @@ function SidebarItemContent({
   fallbackAnchorRef: RefObject<View | null>;
   onBeforeNavigate?: () => void;
 }) {
-  const menu = useMenuContext("PluginSidebarItem");
+  const { anchorRef, anchorToFallback } = useSidebarPopoverAnchor("PluginSidebarItem");
   const hosts = useHosts();
   const compact = useIsCompactFormFactor();
   const hostLabel =
@@ -198,16 +192,12 @@ function SidebarItemContent({
   );
   const openPopover = useCallback(
     (Content: PopoverContent) => {
-      if (!menu.triggerRef.current) assignRef(menu.triggerRef, fallbackAnchorRef.current);
+      anchorToFallback(fallbackAnchorRef);
       showPopover(Content);
     },
-    [fallbackAnchorRef, menu.triggerRef, showPopover],
+    [anchorToFallback, fallbackAnchorRef, showPopover],
   );
   const close = useCallback(() => showPopover(null), [showPopover]);
-  const anchorRef = useCallback(
-    (node: View | null) => assignRef(menu.triggerRef, node),
-    [menu.triggerRef],
-  );
   const frame = useMemo<SidebarItemFrame>(
     () => ({
       section,
@@ -226,16 +216,13 @@ function SidebarItemContent({
   );
   const Item = item.Component;
   const Popover = popover;
-  const placement = POPOVER_PLACEMENT[section];
   return (
     <SidebarItemFrameContext.Provider value={frame}>
       <Item {...itemProps} />
       {Popover ? (
-        <PluginPopoverSurface
-          sheetTitle={item.title}
-          side={placement.side}
-          align={placement.align}
-          offset={8}
+        <SidebarPopoverSurface
+          section={section}
+          title={item.title}
           testID={`${frame.testID}-popover`}
         >
           <SurfaceErrorBoundary installation={plugin} Surface={Popover}>
@@ -245,7 +232,7 @@ function SidebarItemContent({
               </PluginPopoverContent>
             </PluginEnvironmentProvider>
           </SurfaceErrorBoundary>
-        </PluginPopoverSurface>
+        </SidebarPopoverSurface>
       ) : null}
     </SidebarItemFrameContext.Provider>
   );

@@ -82,6 +82,10 @@ test.describe("usage settings", () => {
     await expect(card.getByText("$5.00 / $20.00", { exact: true })).toBeVisible();
     await expect(card.getByText("2026-12-31", { exact: true })).toBeVisible();
     await expect(card.getByText("Gamma auth expired", { exact: true })).toBeVisible();
+
+    await card.getByTestId("usage-display-remaining").click();
+    await expect(card.getByText("30% left")).toBeVisible();
+    await expect(card.getByText("93% left")).toBeVisible();
   });
 
   test("refresh forces a fresh report", async ({ page }) => {

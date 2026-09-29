@@ -15,4 +15,9 @@ export const usageCopy = {
   hostUpgradeRequired: "Update the host to see usage",
   clientUnavailable: "Host connection is not ready",
   retry: "Try again",
+  pin: "Pin",
+  host: "Usage host",
+  displayUsed: "Used",
+  displayRemaining: "Remaining",
+  summary: "Usage summary",
 } as const;

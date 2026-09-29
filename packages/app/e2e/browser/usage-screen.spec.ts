@@ -10,7 +10,9 @@ function twoHoursAgo(): string {
 }
 
 test.describe("usage screen", () => {
-  test("opens from the sidebar and groups reports under their host", async ({ page }) => {
+  test("opens from the sidebar on the host's reports, without a selector for one host", async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     const serverId = getServerId();
     const usage = await installUsageReportsFixture(page, {
@@ -46,6 +48,7 @@ test.describe("usage screen", () => {
 
     const group = page.getByTestId(`usage-host-${serverId}`);
     await expect(group.getByText("Alpha plan", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByTestId("usage-host-switcher")).toHaveCount(0);
     await expect(group.getByText("31%")).toBeVisible();
     await expect(group.getByText("Beta plan", { exact: true })).toBeVisible();
     await expect(group.getByText("Unavailable", { exact: true })).toBeVisible();

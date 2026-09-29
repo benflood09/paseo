@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { settingsStyles } from "@/styles/settings";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import { usageCopy } from "./copy";
+import type { UsageDisplay } from "./display";
+import { UsageDisplayToggle } from "./display-toggle";
 import { UsageList } from "./list";
 import type { UsageView } from "./types";
 
@@ -14,48 +16,56 @@ export function UsageSection({
   serverId,
   title,
   view,
+  display,
   onRefresh,
   testID,
 }: {
   serverId: string;
   title: string;
   view: UsageView;
+  display: UsageDisplay;
   onRefresh: () => void;
   testID?: string;
 }) {
   const busy = view.kind === "loading" || (view.kind === "ready" && view.isRefreshing);
 
-  const refreshButton = useMemo(
+  const trailing = useMemo(
     () =>
       view.kind === "unavailable" ? null : (
-        <Button
-          variant="ghost"
-          size="sm"
-          leftIcon={RefreshCw}
-          loading={busy}
-          onPress={onRefresh}
-          accessibilityLabel={usageCopy.refresh}
-        >
-          {busy ? usageCopy.refreshing : usageCopy.refresh}
-        </Button>
+        <View style={styles.trailing}>
+          <UsageDisplayToggle display={display} />
+          <Button
+            variant="ghost"
+            size="sm"
+            leftIcon={RefreshCw}
+            loading={busy}
+            onPress={onRefresh}
+            accessibilityLabel={usageCopy.refresh}
+          >
+            {busy ? usageCopy.refreshing : usageCopy.refresh}
+          </Button>
+        </View>
       ),
-    [busy, onRefresh, view.kind],
+    [busy, display, onRefresh, view.kind],
   );
 
   return (
-    <SettingsSection title={title} testID={testID} trailing={refreshButton}>
-      <UsageBody serverId={serverId} view={view} onRefresh={onRefresh} />
+    <SettingsSection title={title} testID={testID} trailing={trailing}>
+      <UsageBody serverId={serverId} view={view} display={display} onRefresh={onRefresh} />
     </SettingsSection>
   );
 }
 
-function UsageBody({
+/** What a host's usage view shows: its reports, or why there are none. */
+export function UsageBody({
   serverId,
   view,
+  display,
   onRefresh,
 }: {
   serverId: string;
   view: UsageView;
+  display: UsageDisplay;
   onRefresh: () => void;
 }) {
   if (view.kind === "unavailable") {
@@ -80,7 +90,7 @@ function UsageBody({
     return <UsageMessage text={usageCopy.empty} />;
   }
 
-  return <UsageList serverId={serverId} reports={view.reports} />;
+  return <UsageList serverId={serverId} reports={view.reports} display={display} />;
 }
 
 export function UsageMessage({ text }: { text: string }) {
@@ -92,6 +102,11 @@ export function UsageMessage({ text }: { text: string }) {
 }
 
 const styles = StyleSheet.create((theme) => ({
+  trailing: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+  },
   emptyCard: {
     padding: theme.spacing[4],
     alignItems: "center",

@@ -1,0 +1,102 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import type { UsageReportEntry } from "@getpaseo/protocol/messages";
+import { expect, type Locator, type Page } from "@playwright/test";
+
+const PLUGINS_DIR = path.resolve(__dirname, "../../../../../plugins");
+
+function sourceIcon(plugin: string): string {
+  return readFileSync(path.join(PLUGINS_DIR, plugin, "icon.svg"), "utf8");
+}
+
+function inOneDay(): string {
+  return new Date(Date.now() + 24 * 60 * 60_000).toISOString();
+}
+
+/** Claude and Codex reports shaped like the built-in sources report them. */
+export function claudeAndCodexReports(): UsageReportEntry[] {
+  const fetchedAt = new Date().toISOString();
+  return [
+    {
+      id: "claude:default",
+      account: { label: "dev@example.com" },
+      fetchedAt,
+      sourceId: "claude",
+      sourceLabel: "Claude",
+      icon: sourceIcon("claude-usage-source"),
+      report: {
+        status: "available",
+        planLabel: "Max",
+        windows: [
+          { id: "five_hour", label: "Session", usedPct: 31, resetsAt: inOneDay() },
+          { id: "weekly", label: "Weekly", usedPct: 54, resetsAt: inOneDay() },
+        ],
+      },
+    },
+    {
+      id: "codex:default",
+      account: { label: "dev@example.com" },
+      fetchedAt,
+      sourceId: "codex",
+      sourceLabel: "Codex",
+      icon: sourceIcon("codex-usage-source"),
+      report: {
+        status: "available",
+        planLabel: "Pro",
+        windows: [
+          { id: "session", label: "Session", usedPct: 7, resetsAt: inOneDay() },
+          { id: "weekly", label: "Weekly", usedPct: 12, resetsAt: inOneDay() },
+        ],
+      },
+    },
+  ];
+}
+
+/** The first visible match: the shell keeps a compact copy of the sidebar mounted. */
+function visible(page: Page, testID: string): Locator {
+  return page.locator(`[data-testid="${testID}"]:visible`).first();
+}
+
+export function usageSummary(page: Page): Locator {
+  return visible(page, "sidebar-usage-summary");
+}
+
+export function usageIcon(page: Page): Locator {
+  return visible(page, "sidebar-usage");
+}
+
+/** The summary's expanded view, in its popover or its bottom sheet. */
+export function usageExpanded(page: Page): Locator {
+  return visible(page, "usage-expanded");
+}
+
+export async function expectSummary(page: Page, percents: string[]): Promise<void> {
+  const items = usageSummary(page).getByTestId("sidebar-usage-summary-item");
+  await expect(items).toHaveText(percents);
+}
+
+export async function expectNoSummary(page: Page): Promise<void> {
+  await expect(page.locator('[data-testid="sidebar-usage-summary"]:visible')).toHaveCount(0);
+}
+
+export async function togglePin(scope: Locator, sourceId: string, windowId: string) {
+  const checkbox = scope.getByTestId(`usage-pin-${sourceId}-${windowId}`);
+  const checked = await checkbox.getAttribute("aria-checked");
+  await checkbox.click();
+  await expect(checkbox).toHaveAttribute("aria-checked", checked === "true" ? "false" : "true");
+}
+
+export async function showUsageAs(scope: Locator, displayAs: "used" | "remaining") {
+  await scope.getByTestId(`usage-display-${displayAs}`).click();
+}
+
+/** Opens the compact sidebar drawer. */
+export async function openCompactSidebar(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Open menu", exact: true }).first().click();
+}
+
+/** On a phone the Usage screen has a back header instead of the sidebar menu. */
+export async function leaveUsageScreen(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Back", exact: true }).first().click();
+  await expect(page).not.toHaveURL(/\/usage$/);
+}

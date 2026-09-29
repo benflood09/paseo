@@ -1,7 +1,7 @@
 import { useCallback, useMemo } from "react";
 import { useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useShallow } from "zustand/shallow";
-import { useFetchQueries, useFetchQuery } from "@/data/query";
+import { useFetchQuery } from "@/data/query";
 import {
   getHostRuntimeStore,
   useHostRuntimeConnectionStatuses,
@@ -11,11 +11,10 @@ import {
 import { useSessionStore, type SessionState } from "@/stores/session-store";
 import { usageCopy } from "./copy";
 import {
-  groupUsageByHost,
   replaceReport,
   resolveUsageRefresh,
   resolveUsageView,
-  type UsageHostGroup,
+  type UsageHost,
   type UsageQueryState,
   type UsageRefresh,
 } from "./model";
@@ -107,19 +106,15 @@ export function useHostUsage(serverId: string): { view: UsageView; refresh: () =
   return { view, refresh };
 }
 
-/** Usage reports for every connected host, grouped by host. */
-export function useUsageByHost(): {
-  groups: UsageHostGroup[];
-  refresh: (serverId: string) => void;
-} {
-  const queryClient = useQueryClient();
+/** Every host with whether it is connected and reports usage, in host order. */
+export function useUsageHosts(): UsageHost[] {
   const hosts = useHosts();
   const serverIds = useMemo(() => hosts.map((host) => host.serverId), [hosts]);
   const connectionStatuses = useHostRuntimeConnectionStatuses(serverIds);
   const supportedServerIds = useSessionStore(
     useShallow((state) => serverIds.filter((serverId) => supportsUsage(state.sessions[serverId]))),
   );
-  const usageHosts = useMemo(
+  return useMemo(
     () =>
       hosts.map((host) => ({
         serverId: host.serverId,
@@ -129,26 +124,6 @@ export function useUsageByHost(): {
       })),
     [connectionStatuses, hosts, supportedServerIds],
   );
-  const results = useFetchQueries<UsageReportEntry[]>(
-    usageHosts.map((host) => ({
-      queryKey: usageReportsQueryKey(host.serverId),
-      queryFn: () => listReports(host.serverId),
-      enabled: host.isConnected && host.supportsUsage,
-      dataShape: "list",
-      staleTimeMs: REPORTS_STALE_TIME_MS,
-    })),
-  );
-  const groups = groupUsageByHost(
-    usageHosts,
-    new Map(usageHosts.map((host, index) => [host.serverId, toQueryState(results[index])])),
-  );
-  const refresh = useCallback(
-    (serverId: string) => {
-      void refreshReports(queryClient, serverId).catch(() => undefined);
-    },
-    [queryClient],
-  );
-  return { groups, refresh };
 }
 
 /**

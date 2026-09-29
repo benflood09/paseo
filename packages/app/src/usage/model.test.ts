@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  displayPercent,
   formatUsageFreshness,
-  groupUsageByHost,
   replaceReport,
   resolveUsageRefresh,
+  resolveSummaryHostId,
+  resolveUsageScreenHostId,
   resolveUsageView,
+  type UsageHost,
   type UsageQueryState,
 } from "./model";
 import type { UsageReportEntry, UsageWindow } from "./types";
@@ -62,49 +65,68 @@ describe("resolveUsageView", () => {
   });
 });
 
-describe("groupUsageByHost", () => {
-  it("groups reports under each connected host in host order", () => {
-    const first = entry({ sourceId: "one" });
-    const second = entry({ sourceId: "two" });
-    const groups = groupUsageByHost(
-      [
-        { serverId: "b", label: "Beta", isConnected: true, supportsUsage: true },
-        { serverId: "offline", label: "Offline", isConnected: false, supportsUsage: true },
-        { serverId: "a", label: "Alpha", isConnected: true, supportsUsage: true },
-      ],
-      new Map([
-        ["a", ready([first])],
-        ["b", ready([second, first])],
-      ]),
-    );
+const hosts: UsageHost[] = [
+  { serverId: "offline", label: "Offline", isConnected: false, supportsUsage: true },
+  { serverId: "old", label: "Old", isConnected: true, supportsUsage: false },
+  { serverId: "a", label: "Alpha", isConnected: true, supportsUsage: true },
+  { serverId: "b", label: "Beta", isConnected: true, supportsUsage: true },
+];
 
-    expect(groups).toEqual([
-      {
-        serverId: "b",
-        label: "Beta",
-        view: { kind: "ready", reports: [second, first], isRefreshing: false },
-      },
-      {
-        serverId: "a",
-        label: "Alpha",
-        view: { kind: "ready", reports: [first], isRefreshing: false },
-      },
-    ]);
+describe("resolveSummaryHostId", () => {
+  it("reads the active workspace's host", () => {
+    expect(resolveSummaryHostId("b", hosts)).toBe("b");
   });
 
-  it("shows the update message in an old host's group", () => {
-    const groups = groupUsageByHost(
-      [
-        { serverId: "new", label: "New", isConnected: true, supportsUsage: true },
-        { serverId: "old", label: "Old", isConnected: true, supportsUsage: false },
-      ],
-      new Map([["new", ready([])]]),
-    );
+  it("falls back to the first connected host that reports usage", () => {
+    expect(resolveSummaryHostId(null, hosts)).toBe("a");
+    expect(resolveSummaryHostId("offline", hosts)).toBe("a");
+    expect(resolveSummaryHostId("old", hosts)).toBe("a");
+  });
 
-    expect(groups.map((group) => [group.label, group.view])).toEqual([
-      ["New", { kind: "ready", reports: [], isRefreshing: false }],
-      ["Old", { kind: "unavailable", message: "Update the host to see usage" }],
-    ]);
+  it("has no host when none reports usage", () => {
+    expect(resolveSummaryHostId("old", hosts.slice(0, 2))).toBeNull();
+  });
+});
+
+describe("resolveUsageScreenHostId", () => {
+  it("keeps the user's pick while it stays connected", () => {
+    expect(resolveUsageScreenHostId({ selectedServerId: "old", activeServerId: "b", hosts })).toBe(
+      "old",
+    );
+    expect(
+      resolveUsageScreenHostId({ selectedServerId: "offline", activeServerId: "b", hosts }),
+    ).toBe("b");
+  });
+
+  it("defaults to the active workspace's host, else the first connected host", () => {
+    expect(resolveUsageScreenHostId({ selectedServerId: null, activeServerId: "b", hosts })).toBe(
+      "b",
+    );
+    expect(resolveUsageScreenHostId({ selectedServerId: null, activeServerId: null, hosts })).toBe(
+      "old",
+    );
+    expect(
+      resolveUsageScreenHostId({ selectedServerId: null, activeServerId: null, hosts: [] }),
+    ).toBeNull();
+  });
+});
+
+describe("displayPercent", () => {
+  const window = (input: Partial<UsageWindow>): UsageWindow => ({
+    id: "weekly",
+    label: "Weekly",
+    ...input,
+  });
+
+  it("reads the share used or the share left", () => {
+    expect(displayPercent(window({ usedPct: 31 }), "used")).toBe(31);
+    expect(displayPercent(window({ usedPct: 31 }), "remaining")).toBe(69);
+    expect(displayPercent(window({ remainingPct: 40 }), "used")).toBe(60);
+    expect(displayPercent(window({ usedPct: 50, remainingPct: 45 }), "remaining")).toBe(45);
+  });
+
+  it("has no percent when the window reports none", () => {
+    expect(displayPercent(window({}), "remaining")).toBeNull();
   });
 });
 
