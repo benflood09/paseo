@@ -6,7 +6,7 @@ import type {
 } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useCallback, useMemo, useSyncExternalStore, type ReactNode } from "react";
-import { Platform, Pressable, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, Text, View, useWindowDimensions } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { AlertCircle, ChevronDown, MoreHorizontal } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
@@ -43,6 +43,7 @@ import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import { buttonMatches, type RegisteredPluginButton } from "./model";
 import { pluginButtonStore } from "./store";
+import { resolvePluginPlatform } from "../platform";
 
 interface ButtonView {
   entry: RegisteredPluginButton;
@@ -67,12 +68,6 @@ function headerButtonStyle(compact: boolean, state: IconButtonChromeState, disab
     (state.hovered || state.pressed || state.open) && styles.active,
     disabled && styles.disabled,
   ];
-}
-
-function resolvePlatform(): PluginHostProps["layout"]["platform"] {
-  if (Platform.OS === "ios") return "ios";
-  if (Platform.OS === "android") return "android";
-  return "web";
 }
 
 function ButtonEnvironment({ view, children }: { view: ButtonView; children: ReactNode }) {
@@ -401,7 +396,7 @@ function createButtonView({
       ...entry.context,
       theme,
       host: { id: entry.installation.serverId, label: hostLabel },
-      layout: { compact, platform: resolvePlatform() },
+      layout: { compact, platform: resolvePluginPlatform() },
     },
   };
 }

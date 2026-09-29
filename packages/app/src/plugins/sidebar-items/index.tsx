@@ -6,7 +6,7 @@ import type {
 import type { PluginTheme } from "@getpaseo/plugin";
 import { router, usePathname } from "expo-router";
 import { useCallback, useMemo, useState, type ComponentType, type RefObject } from "react";
-import { Platform, type View } from "react-native";
+import type { View } from "react-native";
 import { withUnistyles } from "react-native-unistyles";
 import { MenuRoot, useMenuContext } from "@/components/ui/menu";
 import { useIsCompactFormFactor } from "@/constants/layout";
@@ -31,6 +31,7 @@ import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import type { PluginSidebarSection } from "../types";
 import { SidebarItemFrameContext, type SidebarItemFrame } from "./frame";
+import { resolvePluginPlatform } from "../platform";
 
 export { SidebarButton, SidebarRow } from "./kit";
 
@@ -52,12 +53,6 @@ function selectTarget(
   const rememberedHostId = getPreferredPluginContributionHost(group.key);
   const remembered = group.targets.find((target) => target.plugin.serverId === rememberedHostId);
   return remembered ?? group.targets[0];
-}
-
-function resolvePlatform(): PluginHostProps["layout"]["platform"] {
-  if (Platform.OS === "ios") return "ios";
-  if (Platform.OS === "android") return "android";
-  return "web";
 }
 
 function renderNothing() {
@@ -183,7 +178,7 @@ function SidebarItemContent({
     () => ({
       theme,
       host: { id: plugin.serverId, label: hostLabel },
-      layout: { compact, platform: resolvePlatform() },
+      layout: { compact, platform: resolvePluginPlatform() },
     }),
     [compact, hostLabel, plugin.serverId, theme],
   );

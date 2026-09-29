@@ -14,6 +14,13 @@ export interface PluginSidebarGroup {
   targets: PluginSidebarTarget[];
 }
 
+/** Header items keep the pre-footer key so users keep their remembered host. */
+function rememberedHostKey(pluginId: string, section: PluginSidebarSection, itemId: string) {
+  return section === "header"
+    ? `${pluginId}/sidebar/${itemId}`
+    : `${pluginId}/sidebar-${section}/${itemId}`;
+}
+
 export function groupPluginSidebarItems(
   plugins: InstalledPlugin[],
   section: PluginSidebarSection,
@@ -21,7 +28,7 @@ export function groupPluginSidebarItems(
   const groups = new Map<string, PluginSidebarGroup>();
   for (const plugin of plugins) {
     for (const item of plugin.sidebarItems[section]) {
-      const key = `${plugin.id}/sidebar-${section}/${item.id}`;
+      const key = rememberedHostKey(plugin.id, section, item.id);
       const existing = groups.get(key);
       if (existing) {
         existing.targets.push({ plugin, item });

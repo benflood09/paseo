@@ -46,8 +46,8 @@ describe("groupPluginSidebarItems", () => {
     );
 
     expect(groups.map((group) => group.key)).toEqual([
-      "example/sidebar-header/main",
-      "example/sidebar-header/settings",
+      "example/sidebar/main",
+      "example/sidebar/settings",
     ]);
   });
 
