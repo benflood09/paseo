@@ -247,8 +247,9 @@ const styles = StyleSheet.create((theme) => ({
   container: {
     gap: theme.spacing[3],
   },
+  // The gap is one step under the card padding: window rows add their own vertical padding.
   containerPadded: {
-    gap: theme.spacing[4],
+    gap: theme.spacing[3],
     paddingVertical: theme.spacing[4],
     paddingHorizontal: theme.spacing[4],
   },
@@ -289,8 +290,9 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.sm,
   },
+  // Window rows carry their own vertical padding, which already separates them.
   bars: {
-    gap: theme.spacing[3],
+    gap: theme.spacing[1],
   },
   details: {
     gap: theme.spacing[1],

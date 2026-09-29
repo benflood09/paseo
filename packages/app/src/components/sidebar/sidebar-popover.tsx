@@ -54,12 +54,15 @@ const PLACEMENT = {
 export function SidebarPopoverSurface({
   section,
   title,
+  sheetTrailing,
   testID,
   children,
 }: {
   section: SidebarSection;
   /** The bottom sheet's title. */
   title: string;
+  /** Controls on the right of the bottom sheet's title. */
+  sheetTrailing?: ReactNode;
   testID: string;
   children: ReactNode;
 }) {
@@ -67,6 +70,7 @@ export function SidebarPopoverSurface({
   return (
     <PluginPopoverSurface
       sheetTitle={title}
+      sheetTrailing={sheetTrailing}
       side={placement.side}
       align={placement.align}
       offset={8}

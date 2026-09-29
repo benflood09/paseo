@@ -952,21 +952,24 @@ const styles = StyleSheet.create((theme) => ({
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
+  // Every footer row is 28px tall with `spacing[1]` between rows, the same as the gap above.
   footerItems: {
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
     columnGap: theme.spacing[2],
-    rowGap: 0,
+    rowGap: theme.spacing[1],
   },
+  // The leading glyph sits on the footer icons' rail: a 16px icon centered in a 28px button
+  // starts 6px in, `spacing[1.5]`.
   footerAddProjectButton: {
     minWidth: 0,
-    minHeight: 32,
+    minHeight: 28,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    paddingVertical: theme.spacing[1.5],
-    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1],
+    paddingHorizontal: theme.spacing[1.5],
     borderRadius: theme.borderRadius.lg,
   },
   footerAddProjectButtonHovered: {

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import {
@@ -8,14 +8,14 @@ import {
 } from "@/components/sidebar/sidebar-popover";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { usageCopy } from "./copy";
+import { UsageControls } from "./controls";
 import { useUsagePreferences, type UsageDisplay } from "./display";
-import { UsageDisplayToggle } from "./display-toggle";
 import { useSummaryHostId } from "./hosts";
 import type { UsagePreferences } from "./preferences";
 import { useHostUsage } from "./queries";
 import { UsageSourceIcon } from "./source-icon";
 import { resolveUsageSummary, type UsageSummaryItem } from "./summary";
-import type { UsageReportEntry, UsageView } from "./types";
+import type { UsageReportEntry } from "./types";
 import { UsageBody } from "./usage-section";
 
 const NO_REPORTS: UsageReportEntry[] = [];
@@ -53,6 +53,12 @@ function HostUsageSummary({
   const items = useMemo(() => resolveUsageSummary(reports, preferences), [preferences, reports]);
   const [open, setOpen] = useState(false);
   const openPopover = useCallback(() => setOpen(true), []);
+  // The compact sheet has its own title row, so the controls join it there.
+  const isCompact = useIsCompactFormFactor();
+  const controls = useMemo(
+    () => <UsageControls view={view} display={display} onRefresh={refresh} />,
+    [display, refresh, view],
+  );
   if (items.length === 0) return null;
   return (
     <SidebarPopoverRoot open={open} onOpenChange={setOpen}>
@@ -60,9 +66,13 @@ function HostUsageSummary({
       <SidebarPopoverSurface
         section="footer"
         title={usageCopy.title}
+        sheetTrailing={isCompact ? controls : null}
         testID="sidebar-usage-summary-popover"
       >
-        <UsageExpandedView serverId={serverId} view={view} display={display} onRefresh={refresh} />
+        <View style={styles.expanded} testID="usage-expanded">
+          {isCompact ? null : <PopoverTitleRow controls={controls} />}
+          <UsageBody serverId={serverId} view={view} display={display} onRefresh={refresh} />
+        </View>
       </SidebarPopoverSurface>
     </SidebarPopoverRoot>
   );
@@ -106,27 +116,12 @@ function SummaryTrigger({
   );
 }
 
-/** The summary's popover and sheet: the host's reports with pins and the used/remaining toggle. */
-function UsageExpandedView({
-  serverId,
-  view,
-  display,
-  onRefresh,
-}: {
-  serverId: string;
-  view: UsageView;
-  display: UsageDisplay;
-  onRefresh: () => void;
-}) {
-  // The compact sheet already carries the title.
-  const isCompact = useIsCompactFormFactor();
+/** The popover's title row; on compact the sheet header plays this part. */
+function PopoverTitleRow({ controls }: { controls: ReactNode }) {
   return (
-    <View style={styles.expanded} testID="usage-expanded">
-      <View style={isCompact ? styles.expandedHeaderCompact : styles.expandedHeader}>
-        {isCompact ? null : <Text style={styles.expandedTitle}>{usageCopy.title}</Text>}
-        <UsageDisplayToggle display={display} />
-      </View>
-      <UsageBody serverId={serverId} view={view} display={display} onRefresh={onRefresh} />
+    <View style={styles.titleRow}>
+      <Text style={styles.title}>{usageCopy.title}</Text>
+      {controls}
     </View>
   );
 }
@@ -137,12 +132,15 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
+    // A wrapping row packs its lines at the top; center them in the 28px row instead.
+    alignContent: "center",
     columnGap: theme.spacing[3],
     rowGap: theme.spacing[1],
+    // Same row geometry and leading rail as Add project and the footer icons.
+    minHeight: 28,
     paddingVertical: theme.spacing[1],
-    // Centers each 14px icon on the column of the 28px footer buttons below.
-    paddingHorizontal: 7,
-    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing[1.5],
+    borderRadius: theme.borderRadius.lg,
   },
   triggerHovered: {
     backgroundColor: theme.colors.surfaceSidebarHover,
@@ -161,17 +159,13 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.spacing[3],
     gap: theme.spacing[3],
   },
-  expandedHeader: {
+  titleRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    gap: theme.spacing[2],
+    gap: theme.spacing[4],
   },
-  expandedHeaderCompact: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-  },
-  expandedTitle: {
+  title: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,

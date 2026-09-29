@@ -1,14 +1,15 @@
 import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
+import { useMemo, type ReactNode } from "react";
 import { View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
-import { HostSwitcher } from "@/components/hosts/host-switcher";
 import { PageLayout } from "@/components/page-layout";
+import { UsageControls } from "./controls";
 import { usageCopy } from "./copy";
-import { useUsagePreferences, type UsageDisplay } from "./display";
+import { useUsagePreferences } from "./display";
 import { useUsageScreenHost } from "./hosts";
+import type { UsageHost } from "./model";
 import { useHostUsage } from "./queries";
-import { UsageMessage, UsageSection } from "./usage-section";
+import { UsageBody, UsageMessage } from "./usage-section";
 
 // The screen is reachable by URL, so there may be no history to go back to.
 function leaveUsage(): void {
@@ -21,62 +22,63 @@ function leaveUsage(): void {
 
 export function UsageScreen() {
   const isFocused = useIsFocused();
+  if (!isFocused) return <UsagePage>{null}</UsagePage>;
+  return <FocusedUsageScreen />;
+}
+
+function UsagePage({ actions, children }: { actions?: ReactNode; children: ReactNode }) {
   return (
-    <PageLayout title={usageCopy.title} onBack={leaveUsage} testID="usage-screen">
-      {isFocused ? <UsageScreenContent /> : null}
+    <PageLayout title={usageCopy.title} onBack={leaveUsage} actions={actions} testID="usage-screen">
+      {children}
     </PageLayout>
   );
 }
 
-function UsageScreenContent() {
+function FocusedUsageScreen() {
   const { serverId, connectedHosts, select } = useUsageScreenHost();
-  const { display } = useUsagePreferences();
-  if (!serverId) return <UsageMessage text={usageCopy.noHosts} />;
-  const title = connectedHosts.find((host) => host.serverId === serverId)?.label ?? serverId;
+  if (!serverId) {
+    return (
+      <UsagePage>
+        <UsageMessage text={usageCopy.noHosts} />
+      </UsagePage>
+    );
+  }
   return (
-    <>
-      {connectedHosts.length > 1 ? (
-        <View style={styles.hostRow}>
-          <HostSwitcher
-            hosts={connectedHosts}
-            value={serverId}
-            onSelect={select}
-            title={usageCopy.host}
-            accessibilityLabel={usageCopy.host}
-            testID="usage-host-switcher"
-          />
-        </View>
-      ) : null}
-      <HostUsage key={serverId} serverId={serverId} title={title} display={display} />
-    </>
+    <HostUsage key={serverId} serverId={serverId} hosts={connectedHosts} onSelectHost={select} />
   );
 }
 
 function HostUsage({
   serverId,
-  title,
-  display,
+  hosts,
+  onSelectHost,
 }: {
   serverId: string;
-  title: string;
-  display: UsageDisplay;
+  hosts: UsageHost[];
+  onSelectHost: (serverId: string) => void;
 }) {
   const { view, refresh } = useHostUsage(serverId);
+  const { display } = useUsagePreferences();
+  const hostSelection = useMemo(
+    () => ({ hosts, serverId, onSelect: onSelectHost }),
+    [hosts, onSelectHost, serverId],
+  );
+  const actions = useMemo(
+    () => (
+      <UsageControls
+        view={view}
+        display={display}
+        onRefresh={refresh}
+        hostSelection={hostSelection}
+      />
+    ),
+    [display, hostSelection, refresh, view],
+  );
   return (
-    <UsageSection
-      serverId={serverId}
-      title={title}
-      view={view}
-      display={display}
-      onRefresh={refresh}
-      testID={`usage-host-${serverId}`}
-    />
+    <UsagePage actions={actions}>
+      <View testID={`usage-host-${serverId}`}>
+        <UsageBody serverId={serverId} view={view} display={display} onRefresh={refresh} />
+      </View>
+    </UsagePage>
   );
 }
-
-const styles = StyleSheet.create((theme) => ({
-  hostRow: {
-    flexDirection: "row",
-    marginBottom: theme.spacing[4],
-  },
-}));

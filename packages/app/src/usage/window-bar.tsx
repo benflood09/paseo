@@ -1,8 +1,13 @@
-import { Check } from "lucide-react-native";
 import { useMemo } from "react";
-import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
-import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import type { Theme } from "@/styles/theme";
+import {
+  Pressable,
+  Text,
+  View,
+  type PressableStateCallbackType,
+  type StyleProp,
+  type ViewStyle,
+} from "react-native";
+import { StyleSheet } from "react-native-unistyles";
 import { clampPct, formatDisplayPct, formatResetLabel } from "./format";
 import { displayPercent, usedPercent } from "./model";
 import type { UsageDisplayAs } from "./preferences";
@@ -22,8 +27,12 @@ function fillToneStyle(tone: UsageTone) {
   }
 }
 
-const ThemedCheck = withUnistyles(Check);
-const checkedIconMapping = (theme: Theme) => ({ color: theme.colors.accentForeground });
+function rowStyle(pinned: boolean) {
+  return ({ hovered }: PressableStateCallbackType & { hovered?: boolean }) => {
+    if (pinned) return [styles.row, styles.rowPinned];
+    return hovered ? [styles.row, styles.rowHovered] : styles.row;
+  };
+}
 
 export function UsageWindowBar({
   window,
@@ -37,7 +46,7 @@ export function UsageWindowBar({
   displayAs: UsageDisplayAs;
   pinned: boolean;
   onTogglePin: () => void;
-  /** Accessibility label of the pin checkbox, naming the source and window. */
+  /** Accessibility label of the pin toggle, naming the source and window. */
   pinLabel: string;
   pinTestID: string;
 }) {
@@ -56,10 +65,22 @@ export function UsageWindowBar({
     ? `runs out ${formatResetLabel(window.runsOutAt)?.replace("resets ", "") ?? ""}`.trim()
     : formatResetLabel(window.resetsAt);
 
+  const accessibilityState = useMemo(() => ({ checked: pinned }), [pinned]);
+  const style = useMemo(() => rowStyle(pinned), [pinned]);
+
+  // The whole row pins the window to the sidebar summary. Pinned or not, it keeps the same
+  // padding so toggling only changes the background.
   return (
-    <View style={styles.container}>
+    <Pressable
+      onPress={onTogglePin}
+      accessibilityRole="checkbox"
+      accessibilityLabel={pinLabel}
+      accessibilityState={accessibilityState}
+      aria-checked={pinned}
+      style={style}
+      testID={pinTestID}
+    >
       <View style={styles.labelRow}>
-        <PinCheckbox pinned={pinned} onToggle={onTogglePin} label={pinLabel} testID={pinTestID} />
         <Text style={styles.label} numberOfLines={1}>
           {window.label}
         </Text>
@@ -73,67 +94,30 @@ export function UsageWindowBar({
       <View style={styles.track}>
         <View style={fillStyle} />
       </View>
-    </View>
-  );
-}
-
-/** Pins the window to the sidebar summary. */
-function PinCheckbox({
-  pinned,
-  onToggle,
-  label,
-  testID,
-}: {
-  pinned: boolean;
-  onToggle: () => void;
-  label: string;
-  testID: string;
-}) {
-  const accessibilityState = useMemo(() => ({ checked: pinned }), [pinned]);
-  return (
-    <Pressable
-      onPress={onToggle}
-      accessibilityRole="checkbox"
-      accessibilityLabel={label}
-      accessibilityState={accessibilityState}
-      aria-checked={pinned}
-      hitSlop={6}
-      style={pinned ? styles.checkboxChecked : styles.checkbox}
-      testID={testID}
-    >
-      {pinned ? <ThemedCheck size={10} strokeWidth={3} uniProps={checkedIconMapping} /> : null}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create((theme) => ({
-  container: {
+  row: {
     gap: 3,
+    // The highlight bleeds into the card padding so the label and bar stay on the card's rail.
+    marginHorizontal: -theme.spacing[2],
+    paddingHorizontal: theme.spacing[2],
+    paddingVertical: theme.spacing[1.5],
+    borderRadius: theme.borderRadius.md,
+  },
+  rowPinned: {
+    backgroundColor: theme.colors.surface2,
+  },
+  rowHovered: {
+    backgroundColor: theme.colors.interactionHighlight,
   },
   labelRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     gap: theme.spacing[2],
-  },
-  checkbox: {
-    width: 14,
-    height: 14,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.borderAccent,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  checkboxChecked: {
-    width: 14,
-    height: 14,
-    borderRadius: theme.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: theme.colors.accent,
-    backgroundColor: theme.colors.accent,
-    alignItems: "center",
-    justifyContent: "center",
   },
   label: {
     flex: 1,

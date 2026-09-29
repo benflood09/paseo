@@ -79,15 +79,20 @@ export async function expectNoSummary(page: Page): Promise<void> {
   await expect(page.locator('[data-testid="sidebar-usage-summary"]:visible')).toHaveCount(0);
 }
 
-export async function togglePin(scope: Locator, sourceId: string, windowId: string) {
-  const checkbox = scope.getByTestId(`usage-pin-${sourceId}-${windowId}`);
-  const checked = await checkbox.getAttribute("aria-checked");
-  await checkbox.click();
-  await expect(checkbox).toHaveAttribute("aria-checked", checked === "true" ? "false" : "true");
+/** A window row, which is itself the pin toggle: "Claude", "Session". */
+export function pinRow(scope: Locator, source: string, window: string): Locator {
+  return scope.getByRole("checkbox", { name: `Pin ${source} ${window}`, exact: true });
 }
 
-export async function showUsageAs(scope: Locator, displayAs: "used" | "remaining") {
-  await scope.getByTestId(`usage-display-${displayAs}`).click();
+export async function togglePin(scope: Locator, source: string, window: string) {
+  const row = pinRow(scope, source, window);
+  const pinned = await row.isChecked();
+  await row.click();
+  await expect(row).toBeChecked({ checked: !pinned });
+}
+
+export async function showUsageAs(scope: Locator | Page, displayAs: "used" | "remaining") {
+  await scope.locator(`[data-testid="usage-display-${displayAs}"]:visible`).first().click();
 }
 
 /** Opens the compact sidebar drawer. */
