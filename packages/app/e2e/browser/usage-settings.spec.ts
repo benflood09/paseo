@@ -39,7 +39,7 @@ test.describe("usage settings", () => {
             sourceLabel: "Alpha plan",
             report: {
               planLabel: "Max",
-              windows: [{ id: "session", label: "Session", usedPct: 7, headline: true }],
+              windows: [{ id: "session", label: "Session", usedPct: 7 }],
             },
           }),
           report({
@@ -133,7 +133,8 @@ test.describe("usage settings", () => {
     await openSettingsHostSection(page, serverId, "usage");
 
     await expect(
-      page.getByTestId("usage-card").getByText("Update the host to see usage", { exact: true }),
+      // Names the host: "Update Laptop to see usage".
+      page.getByTestId("usage-card").getByText(/^Update (?!the host ).+ to see usage$/),
     ).toBeVisible({ timeout: 10_000 });
     expect(usage.listRequests()).toHaveLength(0);
   });

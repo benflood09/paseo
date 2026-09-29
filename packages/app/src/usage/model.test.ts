@@ -4,9 +4,10 @@ import {
   formatUsageFreshness,
   replaceReport,
   resolveUsageRefresh,
-  resolveSidebarUsageHostId,
+  resolveUsageHostId,
   resolveUsageScreenHostId,
   resolveUsageView,
+  usageWindowRowLabel,
   type UsageHost,
   type UsageQueryState,
 } from "./model";
@@ -40,18 +41,28 @@ function ready(data: UsageReportEntry[]): UsageQueryState {
 describe("resolveUsageView", () => {
   it("asks for a host update when the host lacks usage sources", () => {
     expect(
-      resolveUsageView({ isConnected: true, supportsUsage: false, query: ready([entry({})]) }),
-    ).toEqual({ kind: "unavailable", message: "Update the host to see usage" });
+      resolveUsageView({
+        hostLabel: "Laptop",
+        isConnected: true,
+        supportsUsage: false,
+        query: ready([entry({})]),
+      }),
+    ).toEqual({ kind: "unavailable", message: "Update Laptop to see usage" });
   });
 
   it("asks for a connection before anything else", () => {
     expect(
-      resolveUsageView({ isConnected: false, supportsUsage: false, query: undefined }),
-    ).toEqual({ kind: "unavailable", message: "Connect to this host to see usage" });
+      resolveUsageView({
+        hostLabel: "Laptop",
+        isConnected: false,
+        supportsUsage: false,
+        query: undefined,
+      }),
+    ).toEqual({ kind: "unavailable", message: "Connect to Laptop to see usage" });
   });
 
   it("moves from loading to ready to error", () => {
-    const base = { isConnected: true, supportsUsage: true };
+    const base = { hostLabel: "Laptop", isConnected: true, supportsUsage: true };
     expect(resolveUsageView({ ...base, query: undefined })).toEqual({ kind: "loading" });
     expect(
       resolveUsageView({ ...base, query: { data: [], error: null, isFetching: true } }),
@@ -72,19 +83,19 @@ const hosts: UsageHost[] = [
   { serverId: "b", label: "Beta", isConnected: true, supportsUsage: true },
 ];
 
-describe("resolveSidebarUsageHostId", () => {
+describe("resolveUsageHostId", () => {
   it("reads the active workspace's host", () => {
-    expect(resolveSidebarUsageHostId("b", hosts)).toBe("b");
+    expect(resolveUsageHostId("b", hosts)).toBe("b");
   });
 
   it("falls back to the first connected host that reports usage", () => {
-    expect(resolveSidebarUsageHostId(null, hosts)).toBe("a");
-    expect(resolveSidebarUsageHostId("offline", hosts)).toBe("a");
-    expect(resolveSidebarUsageHostId("old", hosts)).toBe("a");
+    expect(resolveUsageHostId(null, hosts)).toBe("a");
+    expect(resolveUsageHostId("offline", hosts)).toBe("a");
+    expect(resolveUsageHostId("old", hosts)).toBe("a");
   });
 
   it("has no host when none reports usage", () => {
-    expect(resolveSidebarUsageHostId("old", hosts.slice(0, 2))).toBeNull();
+    expect(resolveUsageHostId("old", hosts.slice(0, 2))).toBeNull();
   });
 });
 
@@ -98,16 +109,43 @@ describe("resolveUsageScreenHostId", () => {
     ).toBe("b");
   });
 
-  it("defaults to the active workspace's host, else the first connected host", () => {
-    expect(resolveUsageScreenHostId({ selectedServerId: null, activeServerId: "b", hosts })).toBe(
-      "b",
+  it("defaults to the host the sidebar row reads", () => {
+    for (const activeServerId of ["b", null, "old", "offline"]) {
+      expect(resolveUsageScreenHostId({ selectedServerId: null, activeServerId, hosts })).toBe(
+        resolveUsageHostId(activeServerId, hosts),
+      );
+    }
+    expect(resolveUsageScreenHostId({ selectedServerId: null, activeServerId: "old", hosts })).toBe(
+      "a",
     );
-    expect(resolveUsageScreenHostId({ selectedServerId: null, activeServerId: null, hosts })).toBe(
-      "old",
-    );
+  });
+
+  it("shows the first connected host when none reports usage, so the screen says to update it", () => {
+    expect(
+      resolveUsageScreenHostId({
+        selectedServerId: null,
+        activeServerId: null,
+        hosts: hosts.slice(0, 2),
+      }),
+    ).toBe("old");
     expect(
       resolveUsageScreenHostId({ selectedServerId: null, activeServerId: null, hosts: [] }),
     ).toBeNull();
+  });
+});
+
+describe("usageWindowRowLabel", () => {
+  it("names the window, its percent and its reset after what pinning it pins", () => {
+    expect(
+      usageWindowRowLabel({
+        pinLabel: "Pin Claude Session",
+        value: "31%",
+        trailing: "resets in 2h",
+      }),
+    ).toBe("Pin Claude Session, 31% · resets in 2h");
+    expect(usageWindowRowLabel({ pinLabel: "Pin Codex Weekly", value: "—", trailing: null })).toBe(
+      "Pin Codex Weekly, —",
+    );
   });
 });
 

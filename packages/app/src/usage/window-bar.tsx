@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { Pressable, Text, View, type StyleProp, type ViewStyle } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { clampPct, formatDisplayPct, formatResetLabel } from "./format";
-import { displayPercent, usedPercent } from "./model";
+import { displayPercent, usageWindowRowLabel, usedPercent } from "./model";
 import type { UsageDisplayAs } from "./preferences";
 import { deriveTone } from "./tone";
 import type { UsageTone, UsageWindow } from "./types";
@@ -39,7 +39,7 @@ export function UsageWindowBar({
   displayAs: UsageDisplayAs;
   pinned: boolean;
   onTogglePin: () => void;
-  /** Accessibility label of the pin toggle, naming the source and window. */
+  /** What the row pins, naming the source and window: "Pin Claude Session". */
   pinLabel: string;
   pinTestID: string;
 }) {
@@ -58,6 +58,7 @@ export function UsageWindowBar({
     ? `runs out ${formatResetLabel(window.runsOutAt)?.replace("resets ", "") ?? ""}`.trim()
     : formatResetLabel(window.resetsAt);
 
+  const value = shownPct != null ? formatDisplayPct(shownPct, displayAs) : "—";
   const accessibilityState = useMemo(() => ({ checked: pinned }), [pinned]);
 
   // The whole row pins the window to the sidebar Usage item. Pinned or not, it keeps the same
@@ -66,7 +67,7 @@ export function UsageWindowBar({
     <Pressable
       onPress={onTogglePin}
       accessibilityRole="checkbox"
-      accessibilityLabel={pinLabel}
+      accessibilityLabel={usageWindowRowLabel({ pinLabel, value, trailing })}
       accessibilityState={accessibilityState}
       aria-checked={pinned}
       style={styles.row}
@@ -76,7 +77,7 @@ export function UsageWindowBar({
         <WindowRowContent
           highlight={highlightStyle(pinned, Boolean(hovered))}
           label={window.label}
-          value={shownPct != null ? formatDisplayPct(shownPct, displayAs) : "—"}
+          value={value}
           trailing={trailing}
           isAtRisk={isAtRisk}
           fillStyle={fillStyle}

@@ -3,7 +3,7 @@ import {
   useActiveWorkspaceSelection,
   useLastWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
-import { resolveSidebarUsageHostId, resolveUsageScreenHostId, type UsageHost } from "./model";
+import { resolveUsageHostId, resolveUsageScreenHostId, type UsageHost } from "./model";
 import { useUsageHosts } from "./queries";
 
 /** The active workspace's host; off a workspace route, the last workspace visited. */
@@ -13,13 +13,16 @@ function useActiveServerId(): string | null {
   return active?.serverId ?? last?.serverId ?? null;
 }
 
-/** The host the sidebar Usage item and its popover read, or null when none reports usage. */
-export function useSidebarUsageHostId(): string | null {
-  return resolveSidebarUsageHostId(useActiveServerId(), useUsageHosts());
+/** The host the sidebar Usage row reads, or null when none reports usage. */
+export function useUsageHostId(): string | null {
+  return resolveUsageHostId(useActiveServerId(), useUsageHosts());
 }
 
-/** The Usage screen's host. The pick is screen state: it resets when the screen unmounts. */
-export function useUsageScreenHost(): {
+/**
+ * The host the Usage screen or the compact usage sheet shows, and the hosts to pick from. The pick
+ * is the view's state: it resets when the view unmounts.
+ */
+export function useUsageHostSelection(): {
   serverId: string | null;
   connectedHosts: UsageHost[];
   select: (serverId: string) => void;

@@ -17,6 +17,20 @@ export function displayPercent(window: UsageWindow, displayAs: UsageDisplayAs): 
   return used == null ? null : 100 - used;
 }
 
+/**
+ * A window row's accessible label: what pinning it pins, then what the row shows. The row is a
+ * checkbox, so its checked state says whether it is pinned: "Pin Claude Session, 31% · resets in
+ * 2h", checked.
+ */
+export function usageWindowRowLabel(input: {
+  pinLabel: string;
+  value: string;
+  trailing: string | null | undefined;
+}): string {
+  const summary = input.trailing ? `${input.value} · ${input.trailing}` : input.value;
+  return `${input.pinLabel}, ${summary}`;
+}
+
 /** When a report was fetched, from its compact relative time: "Updated 3m ago". */
 export function formatUsageFreshness(compactTimeAgo: string): string {
   return `${usageCopy.updated} ${formatCompactTimeAgoAsProse(compactTimeAgo)}`;
@@ -54,13 +68,16 @@ export interface UsageQueryState {
 }
 
 export function resolveUsageView(input: {
+  hostLabel: string;
   isConnected: boolean;
   supportsUsage: boolean;
   query: UsageQueryState | undefined;
 }): UsageView {
-  const { isConnected, supportsUsage, query } = input;
-  if (!isConnected) return { kind: "unavailable", message: usageCopy.hostUnavailable };
-  if (!supportsUsage) return { kind: "unavailable", message: usageCopy.hostUpgradeRequired };
+  const { hostLabel, isConnected, supportsUsage, query } = input;
+  if (!isConnected) return { kind: "unavailable", message: usageCopy.hostUnavailable(hostLabel) };
+  if (!supportsUsage) {
+    return { kind: "unavailable", message: usageCopy.hostUpgradeRequired(hostLabel) };
+  }
   if (query?.data) {
     return { kind: "ready", reports: query.data, isRefreshing: query.isFetching };
   }
@@ -80,8 +97,11 @@ export interface UsageHost {
   supportsUsage: boolean;
 }
 
-/** The host the sidebar Usage item reads: the active workspace's, else the first that reports usage. */
-export function resolveSidebarUsageHostId(
+/**
+ * The host usage shows by default, on the sidebar row and the Usage screen: the active workspace's
+ * host if it reports usage, else the first host that does.
+ */
+export function resolveUsageHostId(
   activeServerId: string | null,
   hosts: readonly UsageHost[],
 ): string | null {
@@ -91,8 +111,8 @@ export function resolveSidebarUsageHostId(
 }
 
 /**
- * The host the Usage screen shows: the user's pick while it stays connected, else the active
- * workspace's host, else the first connected host.
+ * The host the Usage screen shows: the user's pick while it stays connected, else the default
+ * host. With no host reporting usage, the first connected host, so the screen says to update it.
  */
 export function resolveUsageScreenHostId(input: {
   selectedServerId: string | null;
@@ -100,8 +120,11 @@ export function resolveUsageScreenHostId(input: {
   hosts: readonly UsageHost[];
 }): string | null {
   const connected = input.hosts.filter((host) => host.isConnected);
-  const find = (serverId: string | null) => connected.find((host) => host.serverId === serverId);
+  const selected = connected.find((host) => host.serverId === input.selectedServerId);
   return (
-    (find(input.selectedServerId) ?? find(input.activeServerId) ?? connected[0])?.serverId ?? null
+    selected?.serverId ??
+    resolveUsageHostId(input.activeServerId, input.hosts) ??
+    connected[0]?.serverId ??
+    null
   );
 }

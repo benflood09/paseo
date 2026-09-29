@@ -38,10 +38,6 @@ async function listReports(serverId: string, forceRefresh = false): Promise<Usag
   return (await requireClient(serverId).listUsageReports({ forceRefresh })).reports;
 }
 
-function reportQueryKey(serverId: string, reportId: string) {
-  return ["usage", "report", serverId, reportId] as const;
-}
-
 async function getReport(
   serverId: string,
   reportId: string,
@@ -60,12 +56,7 @@ function supportsUsage(session: SessionState | undefined): boolean {
 async function refreshReports(queryClient: QueryClient, serverId: string): Promise<void> {
   await queryClient.fetchQuery({
     queryKey: usageReportsQueryKey(serverId),
-    queryFn: async () => {
-      const reports = await listReports(serverId, true);
-      for (const report of reports)
-        queryClient.setQueryData(reportQueryKey(serverId, report.id), report);
-      return reports;
-    },
+    queryFn: () => listReports(serverId, true),
     staleTime: 0,
   });
 }
@@ -85,12 +76,7 @@ export function useHostUsage(serverId: string): { view: UsageView; refresh: () =
   const isSupported = useSessionStore((state) => supportsUsage(state.sessions[serverId]));
   const query = useFetchQuery({
     queryKey: usageReportsQueryKey(serverId),
-    queryFn: async () => {
-      const reports = await listReports(serverId);
-      for (const report of reports)
-        queryClient.setQueryData(reportQueryKey(serverId, report.id), report);
-      return reports;
-    },
+    queryFn: () => listReports(serverId),
     enabled: isConnected && isSupported,
     dataShape: "list",
     staleTimeMs: REPORTS_STALE_TIME_MS,
@@ -98,7 +84,9 @@ export function useHostUsage(serverId: string): { view: UsageView; refresh: () =
   const refresh = useCallback(() => {
     void refreshReports(queryClient, serverId).catch(() => undefined);
   }, [queryClient, serverId]);
+  const hostLabel = useHosts().find((host) => host.serverId === serverId)?.label ?? serverId;
   const view = resolveUsageView({
+    hostLabel,
     isConnected,
     supportsUsage: isSupported,
     query: toQueryState(query),
@@ -127,9 +115,9 @@ export function useUsageHosts(): UsageHost[] {
 }
 
 /**
- * Forces the source to fetch one report, and only that report. The result replaces
- * the report wherever it is cached — its own entry and its host's list — so every
- * surface showing it moves together; until then the previous report stays on screen.
+ * Forces the source to fetch one report, and only that report. The result replaces the report
+ * in its host's list, so every surface showing it moves together; until then the previous report
+ * stays on screen.
  */
 export function useReportRefresh(
   serverId: string,
@@ -139,7 +127,6 @@ export function useReportRefresh(
   const mutation = useMutation({
     mutationFn: () => getReport(serverId, reportId, true),
     onSuccess: (report) => {
-      queryClient.setQueryData(reportQueryKey(serverId, reportId), report);
       queryClient.setQueryData<UsageReportEntry[]>(usageReportsQueryKey(serverId), (reports) =>
         reports ? replaceReport(reports, reportId, report) : reports,
       );

@@ -3,12 +3,11 @@ import { router } from "expo-router";
 import { useMemo, type ReactNode } from "react";
 import { View } from "react-native";
 import { PageLayout } from "@/components/page-layout";
-import { UsageControls } from "./controls";
+import { useHostUsageWithControls } from "./controls";
 import { usageCopy } from "./copy";
 import { useUsagePreferences } from "./display";
-import { useUsageScreenHost } from "./hosts";
+import { useUsageHostSelection } from "./hosts";
 import type { UsageHost } from "./model";
-import { useHostUsage } from "./queries";
 import { UsageBody, UsageMessage } from "./usage-section";
 
 // The screen is reachable by URL, so there may be no history to go back to.
@@ -35,7 +34,7 @@ function UsagePage({ actions, children }: { actions?: ReactNode; children: React
 }
 
 function FocusedUsageScreen() {
-  const { serverId, connectedHosts, select } = useUsageScreenHost();
+  const { serverId, connectedHosts, select } = useUsageHostSelection();
   if (!serverId) {
     return (
       <UsagePage>
@@ -57,25 +56,14 @@ function HostUsage({
   hosts: UsageHost[];
   onSelectHost: (serverId: string) => void;
 }) {
-  const { view, refresh } = useHostUsage(serverId);
   const { display } = useUsagePreferences();
   const hostSelection = useMemo(
     () => ({ hosts, serverId, onSelect: onSelectHost }),
     [hosts, onSelectHost, serverId],
   );
-  const actions = useMemo(
-    () => (
-      <UsageControls
-        view={view}
-        display={display}
-        onRefresh={refresh}
-        hostSelection={hostSelection}
-      />
-    ),
-    [display, hostSelection, refresh, view],
-  );
+  const { view, refresh, controls } = useHostUsageWithControls(hostSelection, display);
   return (
-    <UsagePage actions={actions}>
+    <UsagePage actions={controls}>
       <View testID={`usage-host-${serverId}`}>
         <UsageBody serverId={serverId} view={view} display={display} onRefresh={refresh} />
       </View>

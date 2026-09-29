@@ -73,7 +73,10 @@ test.describe("Usage item", () => {
 
     await test.step("pinning Claude 5-hour and Codex weekly shows both in the Usage item", async () => {
       await expect(screen.getByText("Claude", { exact: true })).toBeVisible({ timeout: 10_000 });
-      await expect(page.getByTestId("usage-host-switcher")).toHaveCount(0);
+      // One host: the selector still names it.
+      await expect(
+        page.locator('[data-testid="usage-host-switcher"]:visible'),
+      ).toHaveAccessibleName(/^Usage host: .+/);
       await togglePin(screen, "Claude", "Session");
       await togglePin(screen, "Codex", "Weekly");
       await expectPinnedUsage(page, ["31%", "12%"]);
@@ -122,11 +125,21 @@ test.describe("Usage item", () => {
       await expect(sheet.getByText("88% left")).toBeVisible();
       await expect(pinRow(sheet, "Claude", "Session")).toBeChecked();
       await expect(pinRow(sheet, "Claude", "Weekly")).not.toBeChecked();
+      // The row reads its window, percent and reset; the checkbox state says it is pinned.
+      await expect(pinRow(sheet, "Claude", "Session")).toHaveAccessibleName(
+        /^Pin Claude Session, \d+% left( · .+)?$/,
+      );
+      // The sheet carries the Usage screen's controls, host selector included.
+      await expect(
+        page.locator('[data-testid="usage-host-switcher"]:visible'),
+      ).toHaveAccessibleName(/^Usage host: .+/);
+      await expect(page.locator('[data-testid="usage-refresh-all"]:visible')).toBeVisible();
       await expect(page).not.toHaveURL(/\/usage$/);
       const sheetBox = (await sheet.boundingBox())!;
       expect(sheetBox.y).toBeGreaterThan(COMPACT.height / 3);
       expect(sheetBox.width).toBeGreaterThan(COMPACT.width * 0.8);
       await qaScreenshot(page, "compact-sheet");
+      await qaScreenshot(page, "phase7-compact-sheet");
       // Tap the backdrop above the sheet.
       await page.mouse.click(COMPACT.width / 2, sheetBox.y / 2);
       await expect(sheet).toHaveCount(0);

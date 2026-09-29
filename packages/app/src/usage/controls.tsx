@@ -6,10 +6,12 @@ import { extraMutedIconColorMapping } from "@/components/ui/icon-button-chrome";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { ToolbarButton, paneContentToolbarIconSize } from "@/components/ui/pane-content-toolbar";
 import { useIsCompactFormFactor } from "@/constants/layout";
+import { useMemo, type ReactElement } from "react";
 import { usageCopy } from "./copy";
 import type { UsageDisplay } from "./display";
 import { UsageDisplayToggle } from "./display-toggle";
 import type { UsageHost } from "./model";
+import { useHostUsage } from "./queries";
 import type { UsageView } from "./types";
 
 const ThemedRotateCw = withUnistyles(RotateCw);
@@ -23,8 +25,8 @@ export interface UsageHostSelection {
 }
 
 /**
- * The controls on the right of every usage title row: the host selector when more than one host
- * is connected, the used/remaining toggle and Refresh. A host that cannot report usage keeps only
+ * The controls on the right of every usage title row: the host selector, which also names the
+ * host shown, the used/remaining toggle and Refresh. A host that cannot report usage keeps only
  * the selector.
  */
 export function UsageControls({
@@ -43,7 +45,7 @@ export function UsageControls({
   const iconSize = paneContentToolbarIconSize(compact);
   return (
     <View style={styles.controls}>
-      {hostSelection && hostSelection.hosts.length > 1 ? (
+      {hostSelection && hostSelection.hosts.length > 0 ? (
         <HostSwitcher
           hosts={hostSelection.hosts}
           value={hostSelection.serverId}
@@ -84,3 +86,26 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
   },
 }));
+
+/**
+ * One host's usage and the title-row controls that go with it, for the Usage screen and the
+ * compact usage sheet.
+ */
+export function useHostUsageWithControls(
+  hostSelection: UsageHostSelection,
+  display: UsageDisplay,
+): { view: UsageView; refresh: () => void; controls: ReactElement } {
+  const { view, refresh } = useHostUsage(hostSelection.serverId);
+  const controls = useMemo(
+    () => (
+      <UsageControls
+        view={view}
+        display={display}
+        onRefresh={refresh}
+        hostSelection={hostSelection}
+      />
+    ),
+    [display, hostSelection, refresh, view],
+  );
+  return { view, refresh, controls };
+}

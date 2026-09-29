@@ -1,22 +1,24 @@
 import { router } from "expo-router";
 import { Gauge } from "lucide-react-native";
 import { useCallback, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { SidebarHeaderRow } from "@/components/sidebar/sidebar-header-row";
 import { SidebarPopoverRoot, SidebarPopoverSurface } from "@/components/sidebar/sidebar-popover";
 import { useIsCompactFormFactor } from "@/constants/layout";
+import { builtinSidebarNavLabelKey } from "@/sidebar-nav/model";
 import { usePanelStore } from "@/stores/panel-store";
 import { buildUsageRoute } from "@/utils/host-routes";
-import { UsageControls } from "./controls";
-import { usageCopy } from "./copy";
+import { useHostUsageWithControls } from "./controls";
 import { useUsagePreferences, type UsageDisplay } from "./display";
-import { useSidebarUsageHostId } from "./hosts";
+import { useUsageHostId, useUsageHostSelection } from "./hosts";
 import type { UsagePreferences } from "./preferences";
 import { useHostUsage } from "./queries";
 import { UsageSourceIcon } from "./source-icon";
 import { resolvePinnedUsage, type PinnedUsageWindow } from "./pinned";
 import type { UsageReportEntry } from "./types";
+import type { UsageHost } from "./model";
 import { UsageBody } from "./usage-section";
 
 const NO_REPORTS: UsageReportEntry[] = [];
@@ -29,7 +31,7 @@ const NO_ITEMS: PinnedUsageWindow[] = [];
  */
 export function UsageSidebarItem() {
   const { preferences, display } = useUsagePreferences();
-  const serverId = useSidebarUsageHostId();
+  const serverId = useUsageHostId();
   // Without pins there is nothing to summarize, so the host is not asked for reports.
   if (!serverId || preferences.pinned.length === 0) {
     return <UsageEntry serverId={serverId} items={NO_ITEMS} display={display} />;
@@ -77,54 +79,86 @@ function UsageEntry({
   items: readonly PinnedUsageWindow[];
   display: UsageDisplay;
 }) {
+  const { t } = useTranslation();
+  const label = t(builtinSidebarNavLabelKey("usage"));
   const isCompact = useIsCompactFormFactor();
   const openUsageScreen = useOpenUsageScreen();
   const [open, setOpen] = useState(false);
   // The sheet mounts on first open, so an unopened sidebar never asks the host for reports.
   const [sheetMounted, setSheetMounted] = useState(false);
   // Without a host there are no reports to show, so compact goes to the screen, which says so.
-  const sheetServerId = isCompact ? serverId : null;
+  const usesSheet = isCompact && serverId !== null;
   const handlePress = useCallback(() => {
-    if (!sheetServerId) {
+    if (!usesSheet) {
       openUsageScreen();
       return;
     }
     setSheetMounted(true);
     setOpen(true);
-  }, [openUsageScreen, sheetServerId]);
+  }, [openUsageScreen, usesSheet]);
 
   const trigger =
     items.length > 0 ? (
-      <PinnedUsageTrigger items={items} onPress={handlePress} />
+      <PinnedUsageTrigger label={label} items={items} onPress={handlePress} />
     ) : (
       <SidebarHeaderRow
         variant="inline"
         icon={Gauge}
-        label={usageCopy.title}
+        label={label}
         onPress={handlePress}
         testID="sidebar-usage"
       />
     );
-  if (!sheetServerId) return trigger;
+  if (!usesSheet) return trigger;
   return (
     <SidebarPopoverRoot open={open} onOpenChange={setOpen}>
       {trigger}
-      {sheetMounted ? <UsageSheet serverId={sheetServerId} display={display} /> : null}
+      {sheetMounted ? <UsageSheet title={label} display={display} /> : null}
     </SidebarPopoverRoot>
   );
 }
 
-/** The compact usage sheet: the host's reports with pins, and the controls in its title row. */
-function UsageSheet({ serverId, display }: { serverId: string; display: UsageDisplay }) {
-  const { view, refresh } = useHostUsage(serverId);
-  const controls = useMemo(
-    () => <UsageControls view={view} display={display} onRefresh={refresh} />,
-    [display, refresh, view],
+/**
+ * The compact usage sheet: the Usage screen's host, reports with pins, and controls, the controls
+ * in its title row.
+ */
+function UsageSheet({ title, display }: { title: string; display: UsageDisplay }) {
+  const { serverId, connectedHosts, select } = useUsageHostSelection();
+  if (!serverId) return null;
+  return (
+    <HostUsageSheet
+      key={serverId}
+      title={title}
+      serverId={serverId}
+      hosts={connectedHosts}
+      onSelectHost={select}
+      display={display}
+    />
   );
+}
+
+function HostUsageSheet({
+  title,
+  serverId,
+  hosts,
+  onSelectHost,
+  display,
+}: {
+  title: string;
+  serverId: string;
+  hosts: UsageHost[];
+  onSelectHost: (serverId: string) => void;
+  display: UsageDisplay;
+}) {
+  const hostSelection = useMemo(
+    () => ({ hosts, serverId, onSelect: onSelectHost }),
+    [hosts, onSelectHost, serverId],
+  );
+  const { view, refresh, controls } = useHostUsageWithControls(hostSelection, display);
   return (
     <SidebarPopoverSurface
       section="footer"
-      title={usageCopy.title}
+      title={title}
       sheetTrailing={controls}
       testID="sidebar-usage-sheet"
     >
@@ -135,8 +169,8 @@ function UsageSheet({ serverId, display }: { serverId: string; display: UsageDis
   );
 }
 
-function pinnedUsageLabel(items: readonly PinnedUsageWindow[]): string {
-  return `${usageCopy.title}: ${items.map((item) => `${item.label} ${item.percentText}`).join(", ")}`;
+function pinnedUsageLabel(label: string, items: readonly PinnedUsageWindow[]): string {
+  return `${label}: ${items.map((item) => `${item.label} ${item.percentText}`).join(", ")}`;
 }
 
 function triggerStyle({ hovered }: PressableStateCallbackType & { hovered?: boolean }) {
@@ -144,9 +178,11 @@ function triggerStyle({ hovered }: PressableStateCallbackType & { hovered?: bool
 }
 
 function PinnedUsageTrigger({
+  label,
   items,
   onPress,
 }: {
+  label: string;
   items: readonly PinnedUsageWindow[];
   onPress: () => void;
 }) {
@@ -154,7 +190,7 @@ function PinnedUsageTrigger({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={pinnedUsageLabel(items)}
+      accessibilityLabel={pinnedUsageLabel(label, items)}
       style={triggerStyle}
       testID="sidebar-usage"
     >
