@@ -30,7 +30,7 @@ export interface BuildWorkspacePaneContentModelInput {
   onOpenTab: (target: WorkspaceTabDescriptor["target"]) => void;
   onOpenPreferredTarget: (
     target: WorkspaceTabDescriptor["target"],
-    source: OpenInSidePaneSource,
+    source: OpenInSidePaneSource
   ) => void;
   onOpenTargetToSide?: (target: WorkspaceTabDescriptor["target"]) => void;
   onCloseCurrentTab: () => void;
@@ -58,12 +58,14 @@ export function buildWorkspacePaneContentModel({
   ensurePanelsRegistered();
   const registration = getPanelRegistration(tab.kind);
   invariant(registration, `No panel registration for kind: ${tab.kind}`);
+  const tabWorkspaceId =
+    tab.target.workspaceId?.trim() || normalizedWorkspaceId;
   return {
-    key: `${normalizedServerId}:${normalizedWorkspaceId}:${tab.tabId}`,
+    key: `${normalizedServerId}:${tabWorkspaceId}:${tab.tabId}`,
     Component: registration.component,
     paneContextValue: {
       serverId: normalizedServerId,
-      workspaceId: normalizedWorkspaceId,
+      workspaceId: tabWorkspaceId,
       host,
       tabId: tab.tabId,
       target: tab.target,
@@ -96,12 +98,22 @@ export function WorkspacePaneContent({
 }: WorkspacePaneContentProps) {
   const { Component, key, paneContextValue } = content;
   const openTab = useStableEvent(paneContextValue.openTab);
-  const openPreferredTarget = useStableEvent(paneContextValue.openPreferredTarget);
-  const openTargetToSide = useStableEvent(paneContextValue.openTargetToSide ?? (() => undefined));
+  const openPreferredTarget = useStableEvent(
+    paneContextValue.openPreferredTarget
+  );
+  const openTargetToSide = useStableEvent(
+    paneContextValue.openTargetToSide ?? (() => undefined)
+  );
   const closeCurrentTab = useStableEvent(paneContextValue.closeCurrentTab);
-  const retargetCurrentTab = useStableEvent(paneContextValue.retargetCurrentTab);
-  const setCurrentTabState = useStableEvent(paneContextValue.setCurrentTabState);
-  const openFileInWorkspace = useStableEvent(paneContextValue.openFileInWorkspace);
+  const retargetCurrentTab = useStableEvent(
+    paneContextValue.retargetCurrentTab
+  );
+  const setCurrentTabState = useStableEvent(
+    paneContextValue.setCurrentTabState
+  );
+  const openFileInWorkspace = useStableEvent(
+    paneContextValue.openFileInWorkspace
+  );
   const openImportSheet = useStableEvent(paneContextValue.openImportSheet);
   const stablePaneContextValue = useMemo(
     () => ({
@@ -114,7 +126,9 @@ export function WorkspacePaneContent({
       fileNavigationRevision: paneContextValue.fileNavigationRevision,
       openTab,
       openPreferredTarget,
-      openTargetToSide: paneContextValue.openTargetToSide ? openTargetToSide : undefined,
+      openTargetToSide: paneContextValue.openTargetToSide
+        ? openTargetToSide
+        : undefined,
       closeCurrentTab,
       retargetCurrentTab,
       setCurrentTabState,
@@ -138,7 +152,7 @@ export function WorkspacePaneContent({
       paneContextValue.openTargetToSide,
       retargetCurrentTab,
       setCurrentTabState,
-    ],
+    ]
   );
   const paneFocusValue = useMemo(
     () =>
@@ -147,7 +161,7 @@ export function WorkspacePaneContent({
         isPaneFocused,
         onFocusPane,
       }),
-    [isPaneFocused, isWorkspaceFocused, onFocusPane],
+    [isPaneFocused, isWorkspaceFocused, onFocusPane]
   );
 
   return (

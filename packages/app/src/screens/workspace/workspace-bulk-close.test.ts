@@ -211,4 +211,20 @@ describe("workspace bulk close helpers", () => {
     expect(preparedSubagents).toEqual(["child"]);
     expect(cleanedTabs).toEqual(["agent_child", "agent_root"]);
   });
+
+  it("closes all thread-first agent tabs without archiving them", async () => {
+    const groups = classifyBulkClosableTabs([makeAgentTab("root"), makeAgentTab("child")], () => "layout-only");
+    const closeItems = vi.fn(async () => ({ agents: [], terminals: [], requestId: "req-1" }));
+    const cleanedTabs: string[] = [];
+    await closeBulkWorkspaceTabs({
+      groups,
+      client: { closeItems },
+      closeTab: async (_tabId, action) => action(),
+      closeLayoutOnlyAgent: async () => {},
+      closeWorkspaceTabWithCleanup: ({ tabId }) => cleanedTabs.push(tabId),
+      logLabel: "thread-first",
+    });
+    expect(closeItems).not.toHaveBeenCalled();
+    expect(cleanedTabs).toEqual(["agent_root", "agent_child"]);
+  });
 });
