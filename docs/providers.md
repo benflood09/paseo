@@ -1,6 +1,6 @@
 # Adding a New Provider to Paseo
 
-This guide walks through adding a new agent provider end-to-end. There are two integration patterns, and this doc covers both.
+This guide walks through adding a new agent provider end-to-end. Use a provider plugin for a new integration; the core provider checklists below cover existing adapters.
 
 ## Provider-native session options
 
@@ -46,7 +46,16 @@ Each provider definition owns its option schema and exact MCP preapproval mappin
 must fail closed for Hub unattended execution until it can approve one exact injected MCP server
 and tool identity without approving native tools.
 
-## Two Integration Patterns
+## Built-in provider plugins
+
+Muse Code (`muse`) is a direct MSP provider in `plugins/muse-provider/`. It runs one
+`muse serve` host per session and owns translation, persistence, approvals, catalogues,
+skills, subagents, and usage within that directory. It registers through the plugin
+provider interface rather than the core provider manifest and factory. See
+[built-in plugins](plugins.md#built-in-plugins) for registration and launch overrides,
+and [Muse Code setup and limitations](../public-docs/muse-code.md) for the user contract.
+
+## Core integration patterns
 
 ### ACP (Agent Client Protocol) -- recommended
 
@@ -69,7 +78,7 @@ model; it does not override the model list returned by a resolver.
 
 Implement the `AgentClient` and `AgentSession` interfaces from `agent-sdk-types.ts` yourself. This gives full control but requires you to handle process management, streaming, permissions, and session persistence from scratch.
 
-Existing direct providers: `claude` (in `providers/claude/agent.ts`), `codex` (`codex-app-server-agent.ts`), `opencode` (`opencode/runtime-client.ts`), `pi` (`providers/pi/agent.ts`), and `omp` (`providers/omp/agent.ts`). The dev-only `mock` provider (`mock-load-test-agent.ts`) is also direct.
+Core direct providers: `claude` (in `providers/claude/agent.ts`), `codex` (`codex-app-server-agent.ts`), `opencode` (`opencode/runtime-client.ts`), `pi` (`providers/pi/agent.ts`), and `omp` (`providers/omp/agent.ts`). The dev-only `mock` provider (`mock-load-test-agent.ts`) is also direct.
 
 Claude first-party model metadata lives in `packages/server/src/server/agent/providers/claude/model-manifest.ts`. When adding or updating a Claude model, update that manifest only; the model picker thinking options and Claude-specific feature gates are derived from the manifest. Do not add model-specific Claude capability lists in feature code.
 

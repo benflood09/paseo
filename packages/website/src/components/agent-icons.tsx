@@ -82,3 +82,17 @@ export function PiIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function MuseCodeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+      {...props}
+    >
+      <path d="m12 1 3.3 7.7L23 12l-7.7 3.3L12 23l-3.3-7.7L1 12l7.7-3.3L12 1Z" />
+    </svg>
+  );
+}
