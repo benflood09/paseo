@@ -1,17 +1,15 @@
 import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { ReactNode } from "react";
 import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { MenuSurface, type MenuSurfaceProps } from "@/components/ui/menu";
 import { ToastApiProvider, type useToast } from "@/contexts/toast-context";
 import type { createPluginClientStateSource } from "./client-state/source";
-import { PluginRuntimeBoundary, PluginRenderedRuntimeBoundary } from "./runtime-boundary";
+import { PluginInstallationProvider } from "./installation-provider";
 import type { InstalledPlugin } from "./types";
 
 export interface PluginEnvironment {
   installation: InstalledPlugin;
-  client: DaemonClient;
   state: ReturnType<typeof createPluginClientStateSource>;
   toast: ReturnType<typeof useToast>;
 }
@@ -24,8 +22,7 @@ interface PluginEnvironmentProviderProps {
 /**
  * The providers plugin UI runs under. Render it around a contribution and again inside every
  * surface it opens: native sheets teleport their children, so providers around the trigger alone
- * cannot reach a popover body. The content owns a runtime while mounted, so observations it opens
- * close when it unmounts, such as when its popover closes.
+ * cannot reach a popover body.
  */
 export function PluginEnvironmentProvider({
   environment,
@@ -33,26 +30,9 @@ export function PluginEnvironmentProvider({
 }: PluginEnvironmentProviderProps) {
   return (
     <ToastApiProvider api={environment.toast}>
-      <PluginRuntimeBoundary plugin={environment.installation} client={environment.client}>
+      <PluginInstallationProvider plugin={environment.installation}>
         <PluginClientStateProvider source={environment.state}>{children}</PluginClientStateProvider>
-      </PluginRuntimeBoundary>
-    </ToastApiProvider>
-  );
-}
-
-/**
- * The providers for a sidebar item: its runtime exists on the item's first frame, and what the item
- * subscribes to is released when it unmounts. Popovers it opens use `PluginEnvironmentProvider`.
- */
-export function PluginSidebarItemEnvironmentProvider({
-  environment,
-  children,
-}: PluginEnvironmentProviderProps) {
-  return (
-    <ToastApiProvider api={environment.toast}>
-      <PluginRenderedRuntimeBoundary plugin={environment.installation} client={environment.client}>
-        <PluginClientStateProvider source={environment.state}>{children}</PluginClientStateProvider>
-      </PluginRenderedRuntimeBoundary>
+      </PluginInstallationProvider>
     </ToastApiProvider>
   );
 }

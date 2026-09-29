@@ -51,6 +51,8 @@ function installed(serverId: string, themes: PluginThemeContribution[]): Install
     clientBundle: serverId,
     lifetime: new AbortController(),
     queryClient: new QueryClient(),
+    paseo: {} as InstalledPlugin["paseo"],
+    invoke: async () => undefined,
     settingsScreens: [],
     surfaces: [],
     sidebarItems: { header: [], footer: [] },

@@ -388,7 +388,6 @@ function createButtonView({
     toast,
     environment: {
       installation: entry.installation,
-      client,
       toast,
       state: createPluginClientStateSource(entry.installation.serverId),
     },

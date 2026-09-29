@@ -24,7 +24,6 @@ import { pluginScreensHostKey, rememberPluginContributionHost } from "../contrib
 import {
   PluginEnvironmentProvider,
   PluginPopoverContent,
-  PluginSidebarItemEnvironmentProvider,
   type PluginEnvironment,
 } from "../popover";
 import { buildPluginSurfaceRoute, hostIdFromPathname } from "../routes";
@@ -97,7 +96,6 @@ function PluginSidebarItemHost({
       client
         ? {
             installation: plugin,
-            client,
             toast,
             state: createPluginClientStateSource(plugin.serverId),
           }
@@ -119,7 +117,7 @@ function PluginSidebarItemHost({
       Surface={item.Component}
       renderError={renderNothing}
     >
-      <PluginSidebarItemEnvironmentProvider environment={environment}>
+      <PluginEnvironmentProvider environment={environment}>
         <SidebarPopoverRoot open={popoverOpen} onOpenChange={handleOpenChange}>
           <SidebarItemContent
             plugin={plugin}
@@ -134,7 +132,7 @@ function PluginSidebarItemHost({
             onBeforeNavigate={onBeforeNavigate}
           />
         </SidebarPopoverRoot>
-      </PluginSidebarItemEnvironmentProvider>
+      </PluginEnvironmentProvider>
     </SurfaceErrorBoundary>
   );
 }

@@ -1758,6 +1758,27 @@ your subscriptions, timers, and other resources.
 
 Use `usePaseo()` for ordinary Paseo operations from a surface. It borrows the selected host's existing connection; do not create another client.
 
+`usePaseo()` is your plugin's one Paseo client, the same `client.paseo` your setup receives, in
+every surface. Release what you subscribe to in your cleanup; when the plugin is disabled, reloaded,
+or removed, or its host goes away, Paseo disposes the client and ends every subscription still open.
+
+```tsx
+import { usePaseo } from "@getpaseo/plugin/client";
+import { useEffect, useState } from "react";
+import { Text } from "react-native";
+
+function ProjectChanges() {
+  const paseo = usePaseo();
+  const [changes, setChanges] = useState(0);
+  useEffect(() => {
+    const observation = paseo.observeEvents(["project.update"]);
+    observation.subscribe({ snapshot() {}, update: () => setChanges((count) => count + 1) });
+    return () => void observation.release();
+  }, [paseo]);
+  return <Text>{changes} project changes</Text>;
+}
+```
+
 ```tsx
 import { type PluginSurfaceProps, usePaseo } from "@getpaseo/plugin/client";
 import { Pressable, Text } from "react-native";

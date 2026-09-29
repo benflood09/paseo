@@ -289,7 +289,7 @@ Use the existing Paseo SDK for normal Paseo operations. Use plugin RPC only for 
 
 ### Call Paseo from a surface
 
-`usePaseo()` borrows the selected host's current connection. Never create another client inside a surface.
+`usePaseo()` borrows the selected host's current connection. Never create another client inside a surface. It is the plugin's one client in every surface: release your subscriptions in your cleanup; plugin teardown ends the rest.
 
 ```tsx
 import { usePaseo } from "@getpaseo/plugin/client";

@@ -10,7 +10,7 @@ import type { Theme } from "@/styles/theme";
 import type { PluginTimelineStreamItem } from "@/types/stream";
 import { createPluginClientStateSource } from "../client-state/source";
 import { useInstalledPlugin } from "../registry";
-import { PluginRuntimeBoundary } from "../runtime-boundary";
+import { PluginInstallationProvider } from "../installation-provider";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import { resolvePluginPlatform } from "../platform";
@@ -81,11 +81,11 @@ function PluginTimelineItemBody({
   };
   return (
     <SurfaceErrorBoundary installation={plugin} resetKey={item.data} Surface={Component}>
-      <PluginRuntimeBoundary plugin={plugin} client={client}>
+      <PluginInstallationProvider plugin={plugin}>
         <PluginClientStateProvider source={stateSource}>
           <Component {...props} />
         </PluginClientStateProvider>
-      </PluginRuntimeBoundary>
+      </PluginInstallationProvider>
     </SurfaceErrorBoundary>
   );
 }

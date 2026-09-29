@@ -11,6 +11,8 @@ function installation(): InstalledPlugin {
     serverId: "host-a",
     clientBundle: "bundle",
     queryClient: new QueryClient(),
+    paseo: {} as InstalledPlugin["paseo"],
+    invoke: async () => undefined,
     cleanup: () => undefined,
     settingsScreens: [],
     surfaces: [],

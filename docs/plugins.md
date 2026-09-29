@@ -306,9 +306,15 @@ typed async function. Use the host-provided `@tanstack/react-query` for request 
 Paseo gives each plugin installation its own query client.
 
 `usePaseo()` and the handler's `{ paseo }` context expose the same `PaseoApi`: projects,
-workspaces, agents, terminals, providers, and daemon config. They do not expose connection lifecycle. A surface borrows the
-selected host's existing connection; switching the screen's host changes both `usePaseo()` and
-`useRpc()` to that host. An offline selected host fails there and never falls through to another
+workspaces, agents, terminals, providers, and daemon config. They do not expose connection lifecycle.
+
+`usePaseo()` is the plugin's one client: `InstalledPlugin.paseo`, created with the installation in
+`packages/app/src/plugins/registry.ts` over the host's existing connection and passed to setup as
+`client.paseo`. Authors release their subscriptions in their own cleanup, and teardown (disable,
+reload, removal, host removal) disposes the client, which ends the rest; nothing is created or
+disposed per mounted surface. See the
+[public example](../public-docs/plugins/reference.md#use-the-paseo-sdk). Switching the screen's host
+changes both `usePaseo()` and `useRpc()` to that host's installation. An offline selected host fails there and never falls through to another
 installation. A server handler owns an IPC-backed daemon session for the life of its subprocess.
 Use plugin RPC for plugin-specific backend behavior that is not a normal Paseo operation.
 
@@ -440,12 +446,6 @@ one section's order from built-ins, plugin groups, and the section's preference
 - `SidebarRow.trailing` sits in a second `Pressable` beside the row's button, since web cannot nest
   buttons. Its `onPress` is the row's, so a press on non-interactive trailing content presses the
   row; a button inside it wins its own press because only the innermost pressable responds.
-- Every plugin surface owns a runtime while mounted and releases what it subscribed to when it
-  unmounts. A sidebar item creates its runtime during render (`usePluginRenderedRuntime`), so its
-  first frame has content; screens, panels, timeline rows, popovers, header buttons, and composer
-  pills create theirs in an effect. Either way it is a scope over the host's existing client, not a
-  new connection. The rendered runtime closes a microtask after unmount, so StrictMode's remount
-  in the same commit keeps the scope its children already subscribed through.
 - A new-API item renders from the current route's host, else the host remembered under
   `pluginScreensHostKey(pluginId)`, which the screen's host switcher and the item's `openScreen`
   set. One key per plugin: switching host on any of its screens moves all its items.

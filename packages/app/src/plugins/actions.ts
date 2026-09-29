@@ -8,7 +8,6 @@ import type {
 } from "@getpaseo/plugin/client";
 import type { PluginClientStateSource } from "@getpaseo/plugin/client/host";
 import { resolvePluginPanelOpenLocation } from "./workspace-panels/locations";
-import type { PluginSurfaceRuntime } from "./surface-runtime";
 import { parsePluginOpenScreenInput } from "./surface-contribution";
 import type { InstalledPlugin } from "./types";
 
@@ -26,7 +25,6 @@ export interface PluginNavigation {
 
 export function createPluginCapabilities(
   plugin: InstalledPlugin,
-  runtime: PluginSurfaceRuntime,
   navigation: PluginNavigation,
 ): PluginCommandCapabilities {
   function openScreen(input: unknown) {
@@ -34,8 +32,8 @@ export function createPluginCapabilities(
     navigation.openSurface(plugin.id, screenId, params);
   }
   return {
-    paseo: runtime.paseo,
-    rpc: (contract, input) => callPluginRpc(contract, runtime.invoke, input),
+    paseo: plugin.paseo,
+    rpc: (contract, input) => callPluginRpc(contract, plugin.invoke, input),
     openSettings(screenId) {
       if (!plugin.settingsScreens.some((screen) => screen.id === screenId))
         throw new Error(`Plugin settings screen is unavailable: ${screenId}`);
@@ -49,19 +47,18 @@ export function createPluginCapabilities(
 
 export function createPluginAgentActionContext(input: {
   plugin: InstalledPlugin;
-  runtime: PluginSurfaceRuntime;
   navigation: PluginNavigation;
   state: PluginClientStateSource;
   workspaceId: string;
   agentId: string;
 }): PluginAgentCommandContext | null {
-  const { plugin, runtime, navigation, state, workspaceId, agentId } = input;
+  const { plugin, navigation, state, workspaceId, agentId } = input;
   const workspace = state.getWorkspace(workspaceId);
   const agent = state.getAgent(agentId);
   if (!workspace || !agent || agent.workspaceId !== workspace.id) return null;
   return {
     context: "agent",
-    ...createPluginCapabilities(plugin, runtime, navigation),
+    ...createPluginCapabilities(plugin, navigation),
     workspace,
     agent,
     openPanel(panelId, options) {
@@ -79,17 +76,16 @@ export function createPluginAgentActionContext(input: {
 
 export function createPluginWorkspaceActionContext(input: {
   plugin: InstalledPlugin;
-  runtime: PluginSurfaceRuntime;
   navigation: PluginNavigation;
   state: PluginClientStateSource;
   workspaceId: string;
 }): PluginWorkspaceCommandContext | null {
-  const { plugin, runtime, navigation, state, workspaceId } = input;
+  const { plugin, navigation, state, workspaceId } = input;
   const workspace = state.getWorkspace(workspaceId);
   if (!workspace) return null;
   return {
     context: "workspace",
-    ...createPluginCapabilities(plugin, runtime, navigation),
+    ...createPluginCapabilities(plugin, navigation),
     workspace,
     openPanel(panelId, options) {
       const panel = plugin.workspacePanels.find(

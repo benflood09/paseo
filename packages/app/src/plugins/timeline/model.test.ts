@@ -13,6 +13,8 @@ function plugin(input: {
     clientBundle: "bundle",
     lifetime: new AbortController(),
     queryClient: new QueryClient(),
+    paseo: {} as InstalledPlugin["paseo"],
+    invoke: async () => undefined,
     cleanup: () => {},
     settingsScreens: [],
     surfaces: [],

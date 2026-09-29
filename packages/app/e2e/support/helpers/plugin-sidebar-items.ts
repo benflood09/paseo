@@ -76,8 +76,8 @@ export default function contribute(client) {
  * One header item that renders a group: a row per bot, a separator and a status row. Each bot
  * row opens the bot screen with the bot's id as a param, and its trailing More button opens that
  * bot's popover. Commands open a bot with a `serverId` param, and add and remove a footer item
- * after setup; that item opens an event observation and publishes its id on
- * `globalThis.__botAlertsObservation`.
+ * after setup; that item opens an event observation, releases it in its cleanup, and publishes its
+ * id on `globalThis.__botAlertsObservation`.
  */
 const BOTS_SOURCE = `import React from "react";
 import { Pressable, Text, View } from "react-native";
@@ -158,7 +158,7 @@ function AlertsItem() {
   React.useEffect(() => {
     const observation = paseo.observeEvents(["project.update"]);
     observation.subscribe({ snapshot(value) { globalThis.__botAlertsObservation = value.subscriptionId; }, update() {} });
-    // Deliberately leave this observation to the item's runtime.
+    return () => { void observation.release(); };
   }, [paseo]);
   return <SidebarRow icon="Bell" onPress={() => {}} />;
 }

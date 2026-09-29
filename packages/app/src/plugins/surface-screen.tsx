@@ -25,8 +25,7 @@ import {
   rememberPluginContributionHost,
 } from "./contribution-host";
 import { SurfaceErrorBoundary } from "./surface-error-boundary";
-import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
-import { PluginRuntimeBoundary } from "./runtime-boundary";
+import { PluginInstallationProvider } from "./installation-provider";
 import {
   getPluginSurfaceContributionServerIds,
   resolvePluginScreenTitle,
@@ -60,7 +59,6 @@ const ThemedPluginHeaderIcon = withUnistyles(PluginHeaderIcon);
 
 function SurfaceRenderer({
   Surface,
-  client,
   plugin,
   layout,
   host,
@@ -68,7 +66,6 @@ function SurfaceRenderer({
   theme,
 }: {
   Surface: ComponentType<PluginScreenProps>;
-  client: DaemonClient;
   plugin: NonNullable<ReturnType<typeof useInstalledPlugin>>;
   layout: PluginScreenProps["layout"];
   host: PluginScreenProps["host"];
@@ -77,9 +74,9 @@ function SurfaceRenderer({
 }) {
   const navigation = usePluginHostNavigation(host.id);
   return (
-    <PluginRuntimeBoundary plugin={plugin} client={client}>
+    <PluginInstallationProvider plugin={plugin}>
       <Surface theme={theme} host={host} layout={layout} navigation={navigation} params={params} />
-    </PluginRuntimeBoundary>
+    </PluginInstallationProvider>
   );
 }
 
@@ -230,7 +227,6 @@ export function PluginSurfaceScreen() {
           >
             <ThemedSurfaceRenderer
               Surface={surface.Component}
-              client={client}
               plugin={plugin}
               host={host}
               layout={layout}

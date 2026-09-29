@@ -19,7 +19,7 @@ import { createPluginClientStateSource } from "../client-state/source";
 import { toPluginTheme } from "../theme";
 import { resolvePluginIcon } from "../icons";
 import { useInstalledPlugin } from "../registry";
-import { PluginRuntimeBoundary } from "../runtime-boundary";
+import { PluginInstallationProvider } from "../installation-provider";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { resolvePluginWorkspacePanel } from "./resolution";
 import { resolvePluginPlatform } from "../platform";
@@ -96,9 +96,9 @@ function PluginPanelBody({ theme }: { theme: PluginTheme }) {
       Surface={Surface}
       key={`${serverId}/${target.pluginId}/${target.panelId}/${target.context}`}
     >
-      <PluginRuntimeBoundary plugin={plugin} client={client}>
+      <PluginInstallationProvider plugin={plugin}>
         <PluginClientStateProvider source={stateSource}>{panel}</PluginClientStateProvider>
-      </PluginRuntimeBoundary>
+      </PluginInstallationProvider>
     </SurfaceErrorBoundary>
   );
 }
