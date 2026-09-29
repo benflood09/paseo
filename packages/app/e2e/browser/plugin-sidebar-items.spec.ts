@@ -200,6 +200,19 @@ test.describe("Plugin sidebar items", () => {
     });
   });
 
+  test("a header row's shortcut hint presses the row", async ({ page }) => {
+    await page.setViewportSize(WIDE);
+    await gotoWorkspace(page, workspaceId);
+    const newWorkspace = visibleTestId(page, "sidebar-global-new-workspace");
+    await expect(newWorkspace).toBeVisible({ timeout: 30_000 });
+    await newWorkspace.hover();
+    const hint = page.getByText("Ctrl+N", { exact: true }).locator("visible=true");
+    await expect(hint).toBeVisible();
+    await qaScreenshot(page, "phase7-header-row-hint", newWorkspace.locator("xpath=../.."));
+    await hint.click();
+    await expect(page).toHaveURL(/\/new(\?|$)/);
+  });
+
   test("a legacy plugin keeps its row, icon, order and visibility", async ({ page }) => {
     test.setTimeout(180_000);
     await page.addInitScript(
@@ -217,10 +230,12 @@ test.describe("Plugin sidebar items", () => {
     await gotoWorkspace(page, workspaceId);
     const entry = headerRow(page, LEGACY_PLUGIN_ID, "entry");
     await expect(entry).toBeVisible({ timeout: 30_000 });
+    let entryIcon = "";
 
     await test.step("the saved order and visibility still apply", async () => {
       await expect(entry).toHaveAccessibleName("Legacy entry");
       await expect(entry.locator("svg")).toHaveCount(1);
+      entryIcon = await entry.locator("svg").innerHTML();
       await expect(headerRow(page, LEGACY_PLUGIN_ID, "hidden")).toHaveCount(0);
       const entryBox = (await entry.boundingBox())!;
       const newWorkspaceBox = (await visibleTestId(
@@ -230,8 +245,9 @@ test.describe("Plugin sidebar items", () => {
       expect(entryBox.y).toBeLessThan(newWorkspaceBox.y);
     });
 
-    await test.step("the row opens its surface and highlights", async () => {
+    await test.step("the row opens its surface on its own sidebar route and highlights", async () => {
       await entry.click();
+      await expect(page).toHaveURL(new RegExp(`/plugin/${LEGACY_PLUGIN_ID}/sidebar/entry$`));
       await expect(page.getByText("Legacy screen body", { exact: true })).toBeVisible();
       await expect(page.getByTestId("plugin-surface-close")).toBeVisible();
       await expect(screenTitle(page)).toHaveText("Legacy entry");
@@ -247,7 +263,19 @@ test.describe("Plugin sidebar items", () => {
       await expectRowActive(headerRow(page, LEGACY_PLUGIN_ID, "entry"), true);
     });
 
-    await test.step("settings lists plugin rows with one generic icon", async () => {
+    await test.step("links saved before a plugin moved to addScreen open the same-id screen", async () => {
+      const host = encodeURIComponent(getServerId());
+      await page.goto(`/h/${host}/plugin/${BOTS_PLUGIN_ID}/sidebar/bot?param.botId=bot-2`);
+      await expect(page.getByText("Bot screen: bot-2", { exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(screenTitle(page)).toHaveText("Bot 2");
+      await page.goto(`/h/${host}/plugin/${BOTS_PLUGIN_ID}/bot`);
+      await expect(page).toHaveURL(new RegExp(`/plugin/${BOTS_PLUGIN_ID}/sidebar/bot$`));
+      await expect(screenTitle(page)).toHaveText("Bot");
+    });
+
+    await test.step("settings shows a legacy row's own icon and one generic icon for the rest", async () => {
       await openSidebarNavSettings(page);
       const legacyIcon = page
         .getByTestId(`sidebar-nav-item-plugin:${LEGACY_PLUGIN_ID}:entry`)
@@ -262,9 +290,11 @@ test.describe("Plugin sidebar items", () => {
         .getByTestId(`sidebar-nav-item-plugin:${SHOWCASE_PLUGIN_ID}:sync`)
         .locator("svg")
         .first();
-      const markup = await legacyIcon.innerHTML();
-      expect(await showcaseIcon.innerHTML()).toBe(markup);
+      const markup = await showcaseIcon.innerHTML();
       expect(await footerIcon.innerHTML()).toBe(markup);
+      expect(await legacyIcon.innerHTML()).not.toBe(markup);
+      // The same registered icon the sidebar row draws.
+      expect(await legacyIcon.innerHTML()).toBe(entryIcon);
       await qaScreenshot(page, "phase2-desktop-settings-sidebar");
       await qaScreenshot(
         page,

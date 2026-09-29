@@ -71,6 +71,7 @@ describe("plugin surface contribution identity", () => {
     expect(getPluginSurfaceContributionServerIds(installations, "review", identity)).toEqual([
       "host-v1",
       "host-v2",
+      "same-surface",
     ]);
   });
 
@@ -87,14 +88,28 @@ describe("plugin surface contribution identity", () => {
     ]);
   });
 
-  it("gives a direct screen the title of the legacy item that points at it", () => {
+  it("opens a direct screen without borrowing a legacy item that points at it", () => {
     const resolved = resolvePluginSurfaceContribution(installations[0] ?? null, {
       kind: "surface",
       id: "surface-v1",
     });
 
-    expect(resolved.sidebarItem?.id).toBe("overview");
+    expect(resolved.sidebarItem).toBeNull();
     expect(resolved.surface?.id).toBe("surface-v1");
+  });
+
+  it("resolves an old sidebar link to the same-id screen once the plugin has migrated", () => {
+    const resolved = resolvePluginSurfaceContribution(installations[2] ?? null, {
+      kind: "sidebar",
+      id: "overview",
+    });
+
+    expect(resolved.sidebarItem).toBeNull();
+    expect(resolved.surface?.id).toBe("overview");
+    expect(
+      resolvePluginSurfaceContribution(installations[2] ?? null, { kind: "sidebar", id: "missing" })
+        .surface,
+    ).toBeNull();
   });
 });
 

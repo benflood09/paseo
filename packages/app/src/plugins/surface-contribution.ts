@@ -11,8 +11,8 @@ export type PluginSurfaceContributionIdentity =
   | { kind: "surface"; id: string };
 
 /**
- * A `sidebar` identity is a legacy `addSidebarItem` route. A `surface` identity also reports the
- * legacy item pointing at it, so a screen opened from a legacy row keeps that row's title and icon.
+ * A `sidebar` identity is a legacy `addSidebarItem` route: it resolves to that item and its screen,
+ * or, once the plugin has moved that item to `addScreen` under the same id, to that screen.
  */
 export function resolvePluginSurfaceContribution(
   plugin: InstalledPlugin | null,
@@ -23,12 +23,10 @@ export function resolvePluginSurfaceContribution(
 } {
   if (!identity || !plugin) return { sidebarItem: null, surface: null };
   const sidebarItem =
-    plugin.legacySidebarItems.find((contribution) =>
-      identity.kind === "sidebar"
-        ? contribution.id === identity.id
-        : contribution.surface === identity.id,
-    ) ?? null;
-  const surfaceId = identity.kind === "sidebar" ? sidebarItem?.surface : identity.id;
+    identity.kind === "sidebar"
+      ? (plugin.legacySidebarItems.find((contribution) => contribution.id === identity.id) ?? null)
+      : null;
+  const surfaceId = sidebarItem ? sidebarItem.surface : identity.id;
   const surface = surfaceId
     ? (plugin.surfaces.find((contribution) => contribution.id === surfaceId) ?? null)
     : null;
@@ -93,11 +91,10 @@ export function getPluginSurfaceContributionServerIds(
   identity: PluginSurfaceContributionIdentity,
 ): string[] {
   return installations
-    .filter((installation) => {
-      if (installation.id !== pluginId) return false;
-      return identity.kind === "sidebar"
-        ? installation.legacySidebarItems.some((contribution) => contribution.id === identity.id)
-        : installation.surfaces.some((contribution) => contribution.id === identity.id);
-    })
+    .filter(
+      (installation) =>
+        installation.id === pluginId &&
+        resolvePluginSurfaceContribution(installation, identity).surface !== null,
+    )
     .map((installation) => installation.serverId);
 }

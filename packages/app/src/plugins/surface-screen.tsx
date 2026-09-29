@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from "expo-router";
-import type { PluginScreenParams, PluginSurfaceProps } from "@getpaseo/plugin/client";
+import type { PluginScreenParams, PluginScreenProps } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { X } from "lucide-react-native";
 import { useCallback, useMemo, type ComponentType } from "react";
@@ -19,7 +19,11 @@ import { resolvePluginIcon } from "./icons";
 import { toPluginTheme } from "./theme";
 import { useInstalledPlugin, usePluginInstallations } from "./registry";
 import { buildPluginSurfaceRoute, pluginScreenParamsFromRoute } from "./routes";
-import { rememberPluginContributionHost } from "./contribution-host";
+import {
+  legacySidebarItemHostKey,
+  pluginScreensHostKey,
+  rememberPluginContributionHost,
+} from "./contribution-host";
 import { SurfaceErrorBoundary } from "./surface-error-boundary";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { PluginRuntimeBoundary } from "./runtime-boundary";
@@ -63,11 +67,11 @@ function SurfaceRenderer({
   params,
   theme,
 }: {
-  Surface: ComponentType<PluginSurfaceProps>;
+  Surface: ComponentType<PluginScreenProps>;
   client: DaemonClient;
   plugin: NonNullable<ReturnType<typeof useInstalledPlugin>>;
-  layout: PluginSurfaceProps["layout"];
-  host: PluginSurfaceProps["host"];
+  layout: PluginScreenProps["layout"];
+  host: PluginScreenProps["host"];
   params: PluginScreenParams;
   theme: PluginTheme;
 }) {
@@ -101,7 +105,13 @@ function PluginHostSwitcher({
   );
   const selectHost = useCallback(
     (nextServerId: string) => {
-      rememberPluginContributionHost(`${pluginId}/${identity.kind}/${identity.id}`, nextServerId);
+      // A legacy row remembers its own host; a screen's host carries to all the plugin's items.
+      rememberPluginContributionHost(
+        identity.kind === "sidebar"
+          ? legacySidebarItemHostKey(pluginId, identity.id)
+          : pluginScreensHostKey(pluginId),
+        nextServerId,
+      );
       router.replace(buildPluginSurfaceRoute(nextServerId, pluginId, identity, params));
     },
     [identity, params, pluginId],

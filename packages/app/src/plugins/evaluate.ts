@@ -22,6 +22,7 @@ import {
   type PluginClientSlashCommandContribution,
   type PluginSidebarContribution,
   type PluginScreenContribution,
+  type PluginScreenProps,
   type PluginScreenTitle,
   type PluginSidebarItemContribution,
   type PluginSurfaceProps,
@@ -35,7 +36,6 @@ import type { ComponentType } from "react";
 import { resolvePluginIcon } from "./icons";
 import { pluginReactNativeRuntime } from "./react-native/runtime";
 import { parsePluginThemeContribution } from "./themes";
-import { createLegacySidebarItemComponent } from "./sidebar-items/legacy";
 
 const CONTRIBUTION_ID = /^[a-z][a-z0-9-]*$/;
 const PANEL_LOCATIONS = ["workspace", "explorer"] as const;
@@ -230,7 +230,12 @@ export function runPluginClientBundle(
     // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
     // Titled by its id; a legacy item pointing at it lends the header its own title instead.
     addSurface(surfaceId: string, Component: ComponentType<PluginSurfaceProps>) {
-      return pluginContext.addScreen({ id: surfaceId, title: surfaceId, Component });
+      if (!isComponentType(Component)) throw new Error(`Screen ${surfaceId} is not a component`);
+      return pluginContext.addScreen({
+        id: surfaceId,
+        title: surfaceId,
+        Component: (props: PluginScreenProps) => React.createElement(Component, props),
+      });
     },
     // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
     addSidebarItem(contribution: PluginSidebarContribution) {
@@ -243,16 +248,12 @@ export function runPluginClientBundle(
         icon: contribution.icon.trim(),
         surface: requireId(contribution.surface, "sidebar surface id"),
       };
-      const removeItem = addSidebarItem("header", {
-        id: legacy.id,
-        title: legacy.title,
-        Component: createLegacySidebarItemComponent(legacy),
-      });
-      const removeLegacy = register(collector.legacySidebarItems, legacy, () => undefined);
-      return () => {
-        removeLegacy();
-        removeItem();
-      };
+      // Shares the header's ids: the sidebar orders both kinds of item under one key.
+      const ids = sidebarItemIds.header;
+      if (ids.has(normalizedId)) throw new Error(`Duplicate sidebar header item: ${normalizedId}`);
+      if (!legacy.title) throw new Error(`Sidebar item ${normalizedId} has no title`);
+      ids.add(normalizedId);
+      return register(collector.legacySidebarItems, legacy, () => ids.delete(normalizedId));
     },
     addWorkspacePanel(contribution: PluginWorkspacePanelContribution) {
       const normalizedId = requireId(contribution.id, "workspace panel id");

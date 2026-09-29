@@ -12,6 +12,7 @@ import {
 
 function group(pluginId: string, contributionId: string): PluginSidebarGroup {
   return {
+    kind: "item",
     key: `${pluginId}/sidebar/${contributionId}`,
     pluginId,
     contributionId,

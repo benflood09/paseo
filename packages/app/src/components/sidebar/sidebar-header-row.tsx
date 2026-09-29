@@ -41,8 +41,8 @@ interface SidebarHeaderRowProps {
   /** Shown in the right slot while the row is hovered, when `trailing` is not set. */
   shortcutKeys?: ShortcutKey[][] | null;
   /**
-   * The right slot. A sibling of the row's pressable, never inside it, so a button here presses
-   * on its own (web cannot nest buttons).
+   * The right slot. A sibling of the row's button, never inside it (web cannot nest buttons). A
+   * press on the slot presses the row; a button inside it presses on its own.
    */
   trailing?: ReactNode;
   rowRef?: Ref<View>;
@@ -99,11 +99,13 @@ export function SidebarHeaderRow({
           ) : (
             <View style={variant === "header" ? styles.iconSpacer : styles.iconSpacerCompact} />
           )}
-          <Text numberOfLines={1} style={[styles.label, isHighlighted && styles.labelHighlighted]}>
-            {label}
-          </Text>
+          <Text style={[styles.label, isHighlighted && styles.labelHighlighted]}>{label}</Text>
         </Pressable>
-        {right === null ? null : <View style={styles.trailing}>{right}</View>}
+        {right === null ? null : (
+          <Pressable onPress={onPress} accessible={false} focusable={false} style={styles.trailing}>
+            {right}
+          </Pressable>
+        )}
       </View>
     </View>
   );

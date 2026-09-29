@@ -289,9 +289,10 @@ errors are logged and do not interrupt host teardown.
 Paseo owns the route, screen header, Lucide icon validation, close action, theme DTO, layout facts,
 and render error boundary. The contributed component owns the complete body below the header.
 The plugin owns the header's text through the screen's `title` (`resolvePluginScreenTitle` in
-`plugins/surface-contribution.ts`). A legacy `addSidebarItem` pointing at the screen overrides it
-with the item's title and icon, as before screens had titles; the `addSurface` alias titles its
-screen with the id.
+`plugins/surface-contribution.ts`). A legacy `addSidebarItem` route (`/sidebar/<id>`) shows the
+item's title and icon instead, as before screens had titles; the `addSurface` alias titles its
+screen with the id. A `/sidebar/<id>` route with no legacy item of that id opens the screen with
+that id, so links saved before a plugin migrated keep working.
 
 Screen params ride in the screen route's query string (`plugins/routes.ts`), not in app state, so
 reload, history, links, and the host switcher keep them without a store. Expo Router merges the
@@ -436,11 +437,21 @@ one section's order from built-ins, plugin groups, and the section's preference
   anchors to its section container.
 - `SidebarSeparator` reuses the app's separator and cancels the footer's horizontal padding, so
   the line runs edge to edge in both sections.
-- `SidebarRow.trailing` is a sibling of the row's `Pressable`; web cannot nest buttons.
+- `SidebarRow.trailing` sits in a second `Pressable` beside the row's button, since web cannot nest
+  buttons. Its `onPress` is the row's, so a press on non-interactive trailing content presses the
+  row; a button inside it wins its own press because only the innermost pressable responds.
+- Sidebar items, header buttons, composer pills, and their popovers share one runtime per
+  installation (`getSharedPluginSurfaceRuntime`), created during render, so they have content on
+  their first frame. Screens, panels, and timeline rows still own a runtime while mounted.
+- A new-API item renders from the current route's host, else the host remembered under
+  `pluginScreensHostKey(pluginId)`, which the screen's host switcher and the item's `openScreen`
+  set. One key per plugin: switching host on any of its screens moves all its items.
 - `addSurface`, `openSurface`, and `addSidebarItem` are undocumented aliases, tagged
-  `COMPAT(pluginSidebarAliases)`. `addSidebarItem` expands to a header item rendering
-  `SidebarRow`, keeps its `plugin:<pluginId>:<id>` settings key, and is also recorded in
-  `legacySidebarItems` so `/plugin/<id>/sidebar/<item>` routes keep resolving.
+  `COMPAT(pluginSidebarAliases)`. `addSidebarItem` is recorded only in `legacySidebarItems` and
+  groups as a `legacy` sidebar group, which the app draws as its own row: its registered icon, in
+  the sidebar and in Settings > Sidebar, opening `/plugin/<id>/sidebar/<item>` on the host it
+  remembers under its own key. It shares header ids and the `plugin:<pluginId>:<id>` settings key
+  with new-API items.
 
 ## Contribute buttons
 

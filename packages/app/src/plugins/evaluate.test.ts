@@ -258,7 +258,7 @@ describe("evaluatePluginClientBundle", () => {
     ).toThrow("Sidebar item main has no title");
   });
 
-  it("expands the addSurface and addSidebarItem aliases to a screen and a header item", () => {
+  it("expands the addSurface and addSidebarItem aliases to a screen and a legacy header item", () => {
     const plugin = evaluatePluginClientBundle(
       "example",
       bundle(`
@@ -271,17 +271,13 @@ describe("evaluatePluginClientBundle", () => {
     expect(plugin.surfaces.map(({ id, title }) => ({ id, title }))).toEqual([
       { id: "main", title: "main" },
     ]);
-    expect(plugin.sidebarItems.header.map(({ id, title }) => ({ id, title }))).toEqual([
-      { id: "entry", title: "Example" },
-    ]);
-    expect(plugin.sidebarItems.header[0]?.Component).toBeTypeOf("function");
-    expect(plugin.sidebarItems.footer).toEqual([]);
+    expect(plugin.sidebarItems).toEqual({ header: [], footer: [] });
     expect(plugin.legacySidebarItems).toEqual([
       { id: "entry", title: "Example", icon: "Blocks", surface: "main" },
     ]);
   });
 
-  it("releases both registrations of an addSidebarItem alias", () => {
+  it("releases an addSidebarItem alias's header id", () => {
     const plugin = evaluatePluginClientBundle(
       "example",
       bundle(`
@@ -294,6 +290,19 @@ describe("evaluatePluginClientBundle", () => {
 
     expect(plugin.sidebarItems.header.map((item) => item.title)).toEqual(["Replacement"]);
     expect(plugin.legacySidebarItems).toEqual([]);
+  });
+
+  it("rejects a header item that reuses an addSidebarItem id", () => {
+    expect(() =>
+      evaluatePluginClientBundle(
+        "example",
+        bundle(`
+          plugin.addScreen({ id: "main", title: "Main", Component: function Screen() { return null; } });
+          plugin.addSidebarItem({ id: "entry", title: "Example", icon: "Blocks", surface: "main" });
+          plugin.addSidebarHeaderItem({ id: "entry", title: "Other", Component() { return null; } });
+        `),
+      ),
+    ).toThrow("Duplicate sidebar header item: entry");
   });
 
   it("collects a declarative attachment source", () => {
@@ -578,9 +587,9 @@ describe("evaluatePluginClientBundle", () => {
         const { Icon } = require("@getpaseo/plugin/client/react-native");
         const module = { exports: {} };
         module.exports.default = function(plugin) {
-          plugin.addSurface("main", function Surface() {
+          plugin.addScreen({ id: "main", title: "Main", Component: function Surface() {
             return Icon({ name: "Settings", size: 18, color: "#123456" });
-          });
+          } });
           return function() {};
         };
         return module.exports;

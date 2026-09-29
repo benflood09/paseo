@@ -763,7 +763,12 @@ screen with other params shows the new params.
 adds a row to the footer, between **Add project** and the footer's icon row. The icon row is fixed;
 plugins can't add to it. Both take `{ id, title, Component }`. `title` labels the item in
 Settings > Sidebar, where users reorder and hide items, and is the default label and accessibility
-label of `SidebarRow`. Settings shows a generic plugin icon for every plugin item.
+label of `SidebarRow`. Settings shows a generic plugin icon for these items; a row from the
+deprecated `addSidebarItem` keeps its registered icon.
+
+With the plugin on several hosts, an item renders from the host of the screen the app shows. Off a
+host's screens, it uses the host last picked in one of the plugin's screens or last opened from one
+of its items, else the first host.
 
 `Component` receives `PluginSidebarItemProps`:
 
@@ -779,10 +784,10 @@ closes the popover.
 
 Render the item with the sidebar kit from `@getpaseo/plugin/client/ui`:
 
-| Component          | Props and behavior                                                                                                                                                                                                                                                           |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SidebarRow`       | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`, `id`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. `id` tells rows of one item apart in test IDs. |
-| `SidebarSeparator` | No props. The sidebar's separator line, between groups of rows.                                                                                                                                                                                                              |
+| Component          | Props and behavior                                                                                                                                                                                                                                                                                                    |
+| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SidebarRow`       | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`, `id`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own; a press elsewhere in it presses the row. `id` tells rows of one item apart in test IDs. |
+| `SidebarSeparator` | No props. The sidebar's separator line, between groups of rows.                                                                                                                                                                                                                                                       |
 
 A popover anchors to the row that was pressed, whether the press landed on the row or on its
 `trailing` content, so a per-row "More" button opens its popover next to its own row.

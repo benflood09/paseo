@@ -1,20 +1,53 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { PaseoApiProvider, PluginRpcProvider } from "@getpaseo/plugin/client/host";
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import type { InstalledPlugin } from "./types";
-import { usePluginSurfaceRuntime } from "./surface-runtime";
+import {
+  getSharedPluginSurfaceRuntime,
+  usePluginSurfaceRuntime,
+  type PluginSurfaceRuntime,
+} from "./surface-runtime";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 
-export function PluginRuntimeBoundary({
-  plugin,
-  client,
-  children,
-}: {
+interface PluginRuntimeBoundaryProps {
   plugin: InstalledPlugin;
   client: DaemonClient;
   children: ReactNode;
-}) {
+}
+
+/** A screen, panel, or timeline row: it owns a runtime while mounted and renders once it has one. */
+export function PluginRuntimeBoundary({ plugin, client, children }: PluginRuntimeBoundaryProps) {
   const runtime = usePluginSurfaceRuntime(client, plugin);
+  return (
+    <PluginRuntimeProviders plugin={plugin} runtime={runtime}>
+      {children}
+    </PluginRuntimeProviders>
+  );
+}
+
+/** Always-mounted chrome: it uses the installation's shared runtime and renders on its first frame. */
+export function PluginSharedRuntimeBoundary({
+  plugin,
+  client,
+  children,
+}: PluginRuntimeBoundaryProps) {
+  const runtime = getSharedPluginSurfaceRuntime(client, plugin);
+  return (
+    <PluginRuntimeProviders plugin={plugin} runtime={runtime}>
+      {children}
+    </PluginRuntimeProviders>
+  );
+}
+
+function PluginRuntimeProviders({
+  plugin,
+  runtime,
+  children,
+}: {
+  plugin: InstalledPlugin;
+  runtime: PluginSurfaceRuntime | null;
+  children: ReactNode;
+}) {
   if (!runtime) return null;
   return (
     <QueryClientProvider client={plugin.queryClient}>

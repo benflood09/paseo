@@ -20,22 +20,24 @@ import { useToast } from "@/contexts/toast-context";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import { createPluginClientStateSource } from "../client-state/source";
-import {
-  getPreferredPluginContributionHost,
-  rememberPluginContributionHost,
-} from "../contribution-host";
+import { pluginScreensHostKey, rememberPluginContributionHost } from "../contribution-host";
 import {
   PluginEnvironmentProvider,
   PluginPopoverContent,
   type PluginEnvironment,
 } from "../popover";
 import { buildPluginSurfaceRoute, hostIdFromPathname } from "../routes";
-import type { PluginSidebarGroup, PluginSidebarTarget } from "../sidebar-groups";
+import {
+  selectPluginSidebarTarget,
+  type PluginSidebarGroup,
+  type PluginSidebarTarget,
+} from "../sidebar-groups";
 import { currentPluginScreen, parsePluginOpenScreenInput } from "../surface-contribution";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import type { PluginSidebarSection } from "../types";
 import { SidebarItemFrameContext, type SidebarItemFrame } from "./frame";
+import { LegacyPluginSidebarRow } from "./legacy";
 import { resolvePluginPlatform } from "../platform";
 
 export { SidebarRow, SidebarSeparator } from "./kit";
@@ -44,22 +46,13 @@ type PopoverContent = ComponentType<PluginPopoverProps>;
 
 const pluginThemeMapping = (theme: Theme) => ({ theme: toPluginTheme(theme) });
 
-function selectTarget(
-  group: PluginSidebarGroup,
-  currentHostId: string | null,
-): PluginSidebarTarget {
-  const current = group.targets.find((target) => target.plugin.serverId === currentHostId);
-  if (current) return current;
-  const rememberedHostId = getPreferredPluginContributionHost(group.key);
-  const remembered = group.targets.find((target) => target.plugin.serverId === rememberedHostId);
-  return remembered ?? group.targets[0];
-}
+type PluginItemGroup = Extract<PluginSidebarGroup, { kind: "item" }>;
 
 function renderNothing() {
   return null;
 }
 
-interface PluginSidebarItemHostProps {
+interface PluginSidebarItemEntryProps {
   group: PluginSidebarGroup;
   section: PluginSidebarSection;
   /** Anchors a popover opened by an item that renders no kit component. */
@@ -67,12 +60,20 @@ interface PluginSidebarItemHostProps {
   onBeforeNavigate?: () => void;
 }
 
+type PluginSidebarItemHostProps = Omit<PluginSidebarItemEntryProps, "group"> & {
+  group: PluginItemGroup;
+};
+
 /**
- * One plugin sidebar item. Renders the item's `Component` from the host `selectTarget` picks,
- * inside the plugin's runtime and its own error boundary: a throwing item renders nothing.
+ * One plugin sidebar item. Renders the item's `Component` from the host `selectPluginSidebarTarget` picks,
+ * inside the plugin's runtime and its own error boundary: a throwing item renders nothing. A legacy
+ * `addSidebarItem` group renders the app's own row.
  */
-export function PluginSidebarItem(props: PluginSidebarItemHostProps) {
-  return <ThemedPluginSidebarItem {...props} uniProps={pluginThemeMapping} />;
+export function PluginSidebarItem({ group, ...props }: PluginSidebarItemEntryProps) {
+  if (group.kind === "legacy") {
+    return <LegacyPluginSidebarRow group={group} onBeforeNavigate={props.onBeforeNavigate} />;
+  }
+  return <ThemedPluginSidebarItem {...props} group={group} uniProps={pluginThemeMapping} />;
 }
 
 function PluginSidebarItemHost({
@@ -84,7 +85,7 @@ function PluginSidebarItemHost({
 }: PluginSidebarItemHostProps & { theme: PluginTheme }) {
   const pathname = usePathname();
   const routeParams = useGlobalSearchParams();
-  const { plugin, item } = selectTarget(group, hostIdFromPathname(pathname));
+  const { plugin, item } = selectPluginSidebarTarget(group, hostIdFromPathname(pathname));
   const client = useHostRuntimeClient(plugin.serverId);
   const toast = useToast();
   // The content outlives `open` so the surface can play its exit and native sheet teardown.
@@ -120,7 +121,6 @@ function PluginSidebarItemHost({
       <PluginEnvironmentProvider environment={environment}>
         <SidebarPopoverRoot open={popoverOpen} onOpenChange={handleOpenChange}>
           <SidebarItemContent
-            group={group}
             plugin={plugin}
             item={item}
             section={section}
@@ -141,7 +141,6 @@ function PluginSidebarItemHost({
 const ThemedPluginSidebarItem = withUnistyles(PluginSidebarItemHost);
 
 function SidebarItemContent({
-  group,
   plugin,
   item,
   section,
@@ -153,7 +152,6 @@ function SidebarItemContent({
   fallbackAnchorRef,
   onBeforeNavigate,
 }: {
-  group: PluginSidebarGroup;
   plugin: PluginSidebarTarget["plugin"];
   item: PluginSidebarTarget["item"];
   section: PluginSidebarSection;
@@ -183,7 +181,7 @@ function SidebarItemContent({
   const openScreen = useCallback(
     (input: PluginOpenScreenInput) => {
       const { screenId, params } = parsePluginOpenScreenInput(plugin, input);
-      rememberPluginContributionHost(group.key, plugin.serverId);
+      rememberPluginContributionHost(pluginScreensHostKey(plugin.id), plugin.serverId);
       showPopover(null);
       onBeforeNavigate?.();
       router.push(
@@ -195,7 +193,7 @@ function SidebarItemContent({
         ),
       );
     },
-    [group.key, onBeforeNavigate, plugin, showPopover],
+    [onBeforeNavigate, plugin, showPopover],
   );
   const openPopover = useCallback(
     (Content: PopoverContent) => {

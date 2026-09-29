@@ -29,10 +29,10 @@ Pick the contribution that matches the request. Each row names the registration,
 
 | Contribution              | Registration                                                | Use it when                                                                                                   | Reference                                                                                          |
 | ------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| Screen and sidebar item   | `addScreen` + `addSidebarHeaderItem`/`addSidebarFooterItem` | A full screen of plugin UI, or a sidebar row or footer button that opens a screen or popover                  | reference.md → Screens and sidebar items; `plugin-examples/local-plugin`                           |
+| Screen and sidebar item   | `addScreen` + `addSidebarHeaderItem`/`addSidebarFooterItem` | A full screen of plugin UI, or sidebar header or footer rows that open a screen or popover                    | reference.md → Screens and sidebar items                                                           |
 | Workspace panel           | `addWorkspacePanel`                                         | UI that lives as a tab beside agents, terminals, files, and diffs; `locations: ["explorer"]` for the Explorer | reference.md → Workspace panels                                                                    |
 | Command Center item       | `addCommandCenterItem`                                      | A global, workspace, or agent action reachable from ⌘K                                                        | reference.md → Command Center items                                                                |
-| Client slash command      | `addSlashCommand`                                           | A `/command args` in the composer that runs plugin code instead of prompting the agent                        | reference.md → Client slash commands                                                               |
+| Client slash command      | `addSlashCommand`                                           | A `/command args` in the composer that runs plugin code instead of prompting the agent                        | reference.md → Slash commands                                                                      |
 | Composer pill             | `addComposerPill`                                           | A per-agent button in the composer track bar next to Tasks and Subagents                                      | reference.md → Composer pills                                                                      |
 | Timeline transformer      | `addTimelineTransformer` + `addTimelineRenderer`            | Replace, explode, or hide a built-in timeline item, including while it streams                                | reference.md → Timeline items; `plugin-examples/timeline-items`, `plugin-examples/inline-thinking` |
 | Timeline row              | `paseo.agents.ref(id).timeline.append(...)`                 | Push a plugin-owned row into an agent timeline from a server handler and update it later                      | reference.md → Append a timeline row from the daemon                                               |
@@ -189,11 +189,12 @@ export default function contribute(client: PluginClientContext) {
 Use `useWorkspace(id, selector)` and `useAgent(id, selector)`. Selectors are required
 and their results use shallow equality. Never select the whole snapshot or add an RPC to discover
 the active workspace or agent. Command callbacks receive the selected host's `paseo`, typed
-`rpc(contract, input)`, `openScreen(id)`, and contextual `openPanel(id)` capabilities.
+`rpc(contract, input)`, `openScreen({ screenId, params? })`, and contextual `openPanel(id)`
+capabilities.
 
 ## Add a screen and a sidebar item
 
-Plugin screens use React Native primitives and work across desktop, browser, iOS, and Android. A sidebar item is a component: render `SidebarRow` (header) or `SidebarButton` (footer) from `@getpaseo/plugin/client/ui` and call `openScreen` or `openPopover` from it. Color text from `theme.colors` and pad from `layout.compact`.
+Plugin screens use React Native primitives and work across desktop, browser, iOS, and Android. A sidebar item, in the header or the footer, is a component: render one or more `SidebarRow`s from `@getpaseo/plugin/client/ui`, with `SidebarSeparator` between groups, and call `openScreen` or `openPopover` from them. A screen's `title` is a string or a function of its `params`; its component receives the `params` it was opened with. Color text from `theme.colors` and pad from `layout.compact`.
 
 ```tsx
 import type {
@@ -635,7 +636,7 @@ If the user asks to disable the global switch, set `pluginsEnabled` to `false`, 
 
 Do not edit a local config when the target is a remote daemon. Perform the edit on the daemon machine, or ask the user to use **Settings → Plugins → Enable plugins**. `paseo reload --host <url>` reloads the remote daemon's own file but does not edit it.
 
-When the same sidebar contribution exists on several connected hosts, Paseo shows it once with a host picker. The selected host owns the bundle, SDK calls, RPCs, and query cache. An offline selected host does not fall through to another host. Attachment sources stay scoped to the composer's host.
+When the same screen or sidebar item exists on several connected hosts, Paseo shows it once. The screen header has a host picker; a sidebar item uses the host of the screen on display, else the host last picked in one of the plugin's screens. The selected host owns the bundle, SDK calls, RPCs, and query cache. An offline selected host does not fall through to another host. Attachment sources stay scoped to the composer's host.
 
 ## Typecheck and manage
 

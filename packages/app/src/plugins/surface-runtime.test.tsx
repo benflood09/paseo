@@ -5,7 +5,10 @@ import { usePaseo } from "@getpaseo/plugin/client";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { createPluginSurfaceRuntime } from "./surface-runtime";
+import { QueryClient } from "@tanstack/react-query";
+import { PluginSharedRuntimeBoundary } from "./runtime-boundary";
+import { createPluginSurfaceRuntime, getSharedPluginSurfaceRuntime } from "./surface-runtime";
+import type { InstalledPlugin } from "./types";
 
 function clientWithWorkspace(id: string) {
   const createWorkspace = vi.fn(async () => ({
@@ -108,5 +111,64 @@ describe("plugin surface host runtime", () => {
       createPluginSurfaceRuntime(null, { id: "same-plugin", lifetime: new AbortController() }),
     ).toBeNull();
     expect(otherHost.createWorkspace).not.toHaveBeenCalled();
+  });
+});
+
+describe("shared plugin runtime", () => {
+  function installation(): InstalledPlugin {
+    return {
+      id: "chrome-plugin",
+      serverId: "host",
+      clientBundle: "",
+      lifetime: new AbortController(),
+      queryClient: new QueryClient(),
+      cleanup: () => undefined,
+      settingsScreens: [],
+      surfaces: [],
+      sidebarItems: { header: [], footer: [] },
+      legacySidebarItems: [],
+      workspacePanels: [],
+      commandCenterItems: [],
+      clientSlashCommands: [],
+      attachmentSources: [],
+      themes: [],
+      timelineTransformers: [],
+      timelineRenderers: [],
+    };
+  }
+
+  it("renders a sidebar item's content on its first frame", () => {
+    const { client } = clientWithWorkspace("workspace-a");
+    function Item() {
+      usePaseo();
+      return <span>Deploys</span>;
+    }
+
+    const markup = renderToStaticMarkup(
+      <PluginSharedRuntimeBoundary plugin={installation()} client={client}>
+        <Item />
+      </PluginSharedRuntimeBoundary>,
+    );
+
+    expect(markup).toBe("<span>Deploys</span>");
+  });
+
+  it("gives every item of an installation one runtime, and a new one for a new host client", () => {
+    const plugin = installation();
+    const hostA = clientWithWorkspace("workspace-a").client;
+    const hostB = clientWithWorkspace("workspace-b").client;
+    const first = getSharedPluginSurfaceRuntime(hostA, plugin);
+
+    expect(first).not.toBeNull();
+    expect(getSharedPluginSurfaceRuntime(hostA, plugin)).toBe(first);
+    expect(getSharedPluginSurfaceRuntime(hostA, installation())).not.toBe(first);
+    expect(getSharedPluginSurfaceRuntime(hostB, plugin)).not.toBe(first);
+  });
+
+  it("has no runtime once the installation is gone", () => {
+    const plugin = installation();
+    plugin.lifetime.abort();
+
+    expect(getSharedPluginSurfaceRuntime(clientWithWorkspace("a").client, plugin)).toBeNull();
   });
 });

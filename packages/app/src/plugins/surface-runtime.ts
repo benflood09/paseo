@@ -42,3 +42,24 @@ export function usePluginSurfaceRuntime(
   }, [client, plugin]);
   return mounted?.client === client && mounted.plugin === plugin ? mounted.runtime : null;
 }
+
+const sharedRuntimes = new WeakMap<
+  InstalledPlugin,
+  { client: DaemonClient; runtime: PluginSurfaceRuntime | null }
+>();
+
+/**
+ * The installation's runtime for chrome that is always mounted: sidebar items, buttons, and their
+ * popovers. Created on first use during render, so their first frame already has content, and
+ * shared by every item of the installation. It closes with the installation's lifetime.
+ */
+export function getSharedPluginSurfaceRuntime(
+  client: DaemonClient,
+  plugin: InstalledPlugin,
+): PluginSurfaceRuntime | null {
+  const cached = sharedRuntimes.get(plugin);
+  if (cached?.client === client) return cached.runtime;
+  const runtime = createPluginSurfaceRuntime(client, plugin);
+  sharedRuntimes.set(plugin, { client, runtime });
+  return runtime;
+}

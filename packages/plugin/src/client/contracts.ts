@@ -60,12 +60,12 @@ export interface PluginScreenLocation {
   params: PluginScreenParams;
 }
 
-export interface PluginSurfaceProps extends PluginNavigableHostProps {
+export interface PluginSurfaceProps extends PluginNavigableHostProps {}
+
+export interface PluginScreenProps extends PluginSurfaceProps {
   /** The params the screen was opened with; `{}` when none. */
   params: PluginScreenParams;
 }
-
-export type PluginScreenProps = PluginSurfaceProps;
 
 export interface PluginPopoverProps extends PluginHostProps {
   close(): void;

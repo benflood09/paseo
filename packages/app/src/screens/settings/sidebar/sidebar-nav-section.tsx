@@ -26,6 +26,7 @@ import {
   type SidebarNavItem,
   type SidebarSection,
 } from "@/sidebar-nav/model";
+import { resolvePluginIcon } from "@/plugins/icons";
 import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
 import { settingsStyles } from "@/styles/settings";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
@@ -46,7 +47,7 @@ const BUILTIN_ICONS: Record<BuiltinSidebarItemId, LucideIcon> = {
   usage: Gauge,
 };
 
-/** Plugin items register no icon, so every plugin row shares this one. */
+/** Plugin items register no icon, so they share this one; a legacy `addSidebarItem` keeps its own. */
 const PLUGIN_ICON = Blocks;
 
 function NavIcon({ Icon, color = "" }: { Icon: LucideIcon; color?: string }) {
@@ -56,7 +57,8 @@ function NavIcon({ Icon, color = "" }: { Icon: LucideIcon; color?: string }) {
 const ThemedNavIcon = withUnistyles(NavIcon);
 
 function navItemIcon(item: SidebarNavItem): LucideIcon {
-  return item.kind === "builtin" ? BUILTIN_ICONS[item.id] : PLUGIN_ICON;
+  if (item.kind === "builtin") return BUILTIN_ICONS[item.id];
+  return item.group.kind === "legacy" ? resolvePluginIcon(item.group.icon) : PLUGIN_ICON;
 }
 
 function navItemLabel(t: TFunction, item: SidebarNavItem): string {

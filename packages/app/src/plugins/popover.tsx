@@ -6,7 +6,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { MenuSurface, type MenuSurfaceProps } from "@/components/ui/menu";
 import { ToastApiProvider, type useToast } from "@/contexts/toast-context";
 import type { createPluginClientStateSource } from "./client-state/source";
-import { PluginRuntimeBoundary } from "./runtime-boundary";
+import { PluginSharedRuntimeBoundary } from "./runtime-boundary";
 import type { InstalledPlugin } from "./types";
 
 export interface PluginEnvironment {
@@ -30,9 +30,9 @@ export function PluginEnvironmentProvider({
 }) {
   return (
     <ToastApiProvider api={environment.toast}>
-      <PluginRuntimeBoundary plugin={environment.installation} client={environment.client}>
+      <PluginSharedRuntimeBoundary plugin={environment.installation} client={environment.client}>
         <PluginClientStateProvider source={environment.state}>{children}</PluginClientStateProvider>
-      </PluginRuntimeBoundary>
+      </PluginSharedRuntimeBoundary>
     </ToastApiProvider>
   );
 }

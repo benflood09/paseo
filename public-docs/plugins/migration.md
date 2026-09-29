@@ -87,6 +87,10 @@ Use this table as the complete registration checklist.
 | `import { defineRpc, defineAttachmentSource } from "@getpaseo/plugin/server"` in shared files | `import { defineRpc, defineAttachmentSource } from "@getpaseo/plugin"`                                                      |
 | `ZodOutput<typeof contract.input>` handler parameter types                                    | `RpcInput<typeof contract>` from `@getpaseo/plugin`; `RpcOutput` for return types                                           |
 
+Register the screen that replaces an `addSidebarItem` under that item's `id` to keep saved links
+working. A `/plugin/<plugin>/sidebar/<id>` link, and the older `/plugin/<plugin>/<id>`, opens the
+`addSidebarItem` with that `id`, or else the screen with that `id`.
+
 Import `PluginClientContext` from `@getpaseo/plugin/client` and `PluginServerContext` from
 `@getpaseo/plugin/server`. Remove imports of the old context type. Client registrations return idempotent removal functions, except header buttons and composer pills, which return `{ update, remove }` handles. Preserve any remover the plugin calls before teardown; Paseo removes outstanding
 registrations after the entry cleanup runs.
