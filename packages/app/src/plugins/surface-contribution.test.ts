@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { InstalledPlugin } from "./types";
 import {
+  currentPluginScreen,
   getPluginSurfaceContributionServerIds,
   resolvePluginSurfaceContribution,
 } from "./surface-contribution";
@@ -21,7 +22,8 @@ function installation(
     cleanup: () => undefined,
     settingsScreens: [],
     surfaces: surfaces.map((id) => ({ id, Component: () => null })),
-    sidebarItems: sidebarItems.map((item) => ({
+    sidebarItems: { header: [], footer: [] },
+    legacySidebarItems: sidebarItems.map((item) => ({
       ...item,
       title: item.id,
       icon: "Blocks",
@@ -81,5 +83,35 @@ describe("plugin surface contribution identity", () => {
       "host-v2",
       "same-surface",
     ]);
+  });
+
+  it("gives a direct screen the title of the legacy item that points at it", () => {
+    const resolved = resolvePluginSurfaceContribution(installations[0] ?? null, {
+      kind: "surface",
+      id: "surface-v1",
+    });
+
+    expect(resolved.sidebarItem?.id).toBe("overview");
+    expect(resolved.surface?.id).toBe("surface-v1");
+  });
+});
+
+describe("currentPluginScreen", () => {
+  const plugin = installation(
+    "local",
+    ["overview", "details"],
+    [{ id: "legacy", surface: "details" }],
+  );
+
+  it("reads the open screen from direct and legacy routes on the installation's host", () => {
+    expect(currentPluginScreen(plugin, "/h/local/plugin/review/surface/overview")).toBe("overview");
+    expect(currentPluginScreen(plugin, "/h/local/plugin/review/sidebar/legacy")).toBe("details");
+  });
+
+  it("is null on another host, another plugin, or a missing screen", () => {
+    expect(currentPluginScreen(plugin, "/h/remote/plugin/review/surface/overview")).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/local/plugin/other/surface/overview")).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/local/plugin/review/surface/missing")).toBeNull();
+    expect(currentPluginScreen(plugin, "/h/local/workspace/abc")).toBeNull();
   });
 });

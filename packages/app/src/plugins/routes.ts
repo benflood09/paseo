@@ -33,3 +33,21 @@ export function hostIdFromPathname(pathname: string): string | null {
     return null;
   }
 }
+
+export function parsePluginSurfaceRoute(pathname: string): {
+  serverId: string;
+  pluginId: string;
+  identity: PluginSurfaceContributionIdentity;
+} | null {
+  const match = /^\/h\/([^/]+)\/plugin\/([^/]+)\/(sidebar|surface)\/([^/]+)\/?$/.exec(pathname);
+  if (!match) return null;
+  try {
+    return {
+      serverId: decodeURIComponent(match[1]),
+      pluginId: decodeURIComponent(match[2]),
+      identity: { kind: match[3] as "sidebar" | "surface", id: decodeURIComponent(match[4]) },
+    };
+  } catch {
+    return null;
+  }
+}

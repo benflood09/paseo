@@ -1,6 +1,10 @@
 export type {
   PluginHostProps,
   PluginSurfaceProps,
+  PluginScreenProps,
+  PluginPopoverProps,
+  PluginSidebarItemProps,
+  PluginSidebarItemContribution,
   PluginIconProps,
   PluginPanelLocation,
   PluginOpenPanelOptions,

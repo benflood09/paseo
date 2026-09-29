@@ -1,7 +1,7 @@
 import { router } from "expo-router";
 import { FolderPlus, Gauge, GitBranch, Import, Server, Settings, X } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
   StyleSheet as RNStyleSheet,
@@ -24,6 +24,7 @@ import {
 import { HostPicker } from "@/components/hosts/host-picker";
 import { SidebarDisplayPreferencesMenu } from "@/components/sidebar/display-preferences/menu";
 import { SidebarNavRows } from "@/components/sidebar/sidebar-nav-rows";
+import { SidebarButton } from "@/components/sidebar/sidebar-button";
 import { SidebarHelpMenu } from "@/components/sidebar/sidebar-help-menu";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { Shortcut } from "@/components/ui/shortcut";
@@ -43,6 +44,9 @@ import type { SidebarWorkspaceGroup } from "@/components/sidebar/sidebar-labels"
 import type { SidebarProjectIconTarget } from "@/utils/sidebar-project-row-model";
 import { type SidebarGroupMode, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import { useHosts } from "@/runtime/host-runtime";
+import { PluginSidebarItem } from "@/plugins/sidebar-items";
+import type { BuiltinSidebarItemId } from "@/sidebar-nav/model";
+import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
 import { usePanelStore } from "@/stores/panel-store";
 import { useOwnsWindowChromeCorner, WindowChromeSafeArea } from "@/utils/desktop-window";
 import { useCloseAgentListGesture } from "@/mobile-panels/gestures";
@@ -269,54 +273,6 @@ function sidebarHostOptionTestID(serverId: string): string {
   return `sidebar-host-row-${serverId}`;
 }
 
-function FooterIconButton({
-  buttonRef,
-  onPress,
-  testID,
-  label,
-  icon: Icon,
-  iconSize,
-  shortcutKeys,
-  theme,
-}: {
-  onPress: () => void;
-  testID: string;
-  label: string;
-  icon: typeof FolderPlus;
-  iconSize?: number;
-  shortcutKeys?: ReturnType<typeof useShortcutKeys>;
-  theme: SidebarTheme;
-  buttonRef?: RefObject<View | null>;
-}) {
-  return (
-    <Tooltip delayDuration={300}>
-      <TooltipTrigger asChild>
-        <Pressable
-          ref={buttonRef}
-          style={styles.footerIconButton}
-          testID={testID}
-          nativeID={testID}
-          collapsable={false}
-          accessible
-          accessibilityLabel={label}
-          accessibilityRole="button"
-          onPress={onPress}
-        >
-          {({ hovered }) => (
-            <Icon
-              size={iconSize ?? theme.iconSize.md}
-              color={hovered ? theme.colors.foreground : theme.colors.foregroundMuted}
-            />
-          )}
-        </Pressable>
-      </TooltipTrigger>
-      <TooltipContent side="top" align="center" offset={8}>
-        <IconTooltipContent label={label} shortcutKeys={shortcutKeys} />
-      </TooltipContent>
-    </Tooltip>
-  );
-}
-
 function footerAddProjectButtonStyle({
   hovered,
 }: PressableStateCallbackType & { hovered?: boolean }) {
@@ -417,20 +373,19 @@ function SidebarHostPicker({
       addHostTestID="sidebar-host-add"
       hostOptionTestID={sidebarHostOptionTestID}
     >
-      <FooterIconButton
+      <SidebarButton
         buttonRef={triggerRef}
         onPress={handleOpen}
         testID="sidebar-hosts-trigger"
         label={label}
         icon={Server}
         iconSize={theme.iconSize.sm}
-        theme={theme}
       />
     </HostPicker>
   );
 }
 
-function SidebarUsageButton({ theme }: { theme: SidebarTheme }) {
+function SidebarUsageButton() {
   const { t } = useTranslation();
   const isCompactLayout = useIsCompactFormFactor();
   const showMobileAgent = usePanelStore((state) => state.showMobileAgent);
@@ -439,12 +394,11 @@ function SidebarUsageButton({ theme }: { theme: SidebarTheme }) {
     router.push(buildUsageRoute());
   }, [isCompactLayout, showMobileAgent]);
   return (
-    <FooterIconButton
+    <SidebarButton
       onPress={handlePress}
       testID="sidebar-usage"
       label={t("settings.hostSections.usage")}
       icon={Gauge}
-      theme={theme}
     />
   );
 }
@@ -464,15 +418,7 @@ function IconTooltipContent({
   );
 }
 
-function SidebarFooter({
-  theme,
-  handleOpenProject,
-  handleImportSession,
-  handleSettings,
-  labels,
-  handleAddHost,
-  handleOpenHostSettings,
-}: {
+interface SidebarFooterProps {
   theme: SidebarTheme;
   handleOpenProject: () => void;
   handleImportSession: () => void;
@@ -486,9 +432,19 @@ function SidebarFooter({
   };
   handleAddHost: () => void;
   handleOpenHostSettings: (serverId: string) => void;
-}) {
+  onBeforeNavigate?: () => void;
+}
+
+/**
+ * Add project on its own line, then one wrapping row: the footer items in the user's
+ * `sidebarFooterItems` order, then Settings. Add project and Settings are fixed.
+ */
+function SidebarFooter(props: SidebarFooterProps) {
+  const { theme, handleOpenProject, handleSettings, labels, onBeforeNavigate } = props;
   const newAgentKeys = useShortcutKeys("new-agent");
   const settingsKeys = useShortcutKeys("toggle-settings");
+  const { items } = useSidebarNavItems("footer");
+  const itemsRef = useRef<View | null>(null);
 
   return (
     <View style={styles.sidebarFooter}>
@@ -498,33 +454,67 @@ function SidebarFooter({
         shortcutKeys={newAgentKeys}
         theme={theme}
       />
-      <View style={styles.footerIconRow}>
-        <SidebarHostPicker
-          theme={theme}
-          label={labels.hosts}
-          onAddHost={handleAddHost}
-          onOpenHostSettings={handleOpenHostSettings}
-        />
-        <FooterIconButton
-          onPress={handleImportSession}
-          testID="sidebar-import-session"
-          label={labels.importSession}
-          icon={Import}
-          theme={theme}
-        />
-        <SidebarUsageButton theme={theme} />
-        <SidebarHelpMenu />
-        <FooterIconButton
+      <View ref={itemsRef} collapsable={false} style={styles.footerItems}>
+        {items.map((item) => {
+          if (!item.visible) return null;
+          if (item.kind === "plugin") {
+            return (
+              <PluginSidebarItem
+                key={item.key}
+                group={item.group}
+                section="footer"
+                fallbackAnchorRef={itemsRef}
+                onBeforeNavigate={onBeforeNavigate}
+              />
+            );
+          }
+          return <BuiltinFooterItem key={item.key} id={item.id} footer={props} />;
+        })}
+        <SidebarButton
           onPress={handleSettings}
           testID="sidebar-settings"
           label={labels.settings}
           icon={Settings}
           shortcutKeys={settingsKeys}
-          theme={theme}
         />
       </View>
     </View>
   );
+}
+
+function BuiltinFooterItem({
+  id,
+  footer,
+}: {
+  id: BuiltinSidebarItemId<"footer">;
+  footer: SidebarFooterProps;
+}) {
+  switch (id) {
+    case "usage-summary":
+      return null;
+    case "hosts":
+      return (
+        <SidebarHostPicker
+          theme={footer.theme}
+          label={footer.labels.hosts}
+          onAddHost={footer.handleAddHost}
+          onOpenHostSettings={footer.handleOpenHostSettings}
+        />
+      );
+    case "import":
+      return (
+        <SidebarButton
+          onPress={footer.handleImportSession}
+          testID="sidebar-import-session"
+          label={footer.labels.importSession}
+          icon={Import}
+        />
+      );
+    case "usage":
+      return <SidebarUsageButton />;
+    case "help":
+      return <SidebarHelpMenu />;
+  }
 }
 
 function MobileSidebar({
@@ -634,6 +624,7 @@ function MobileSidebar({
           labels={labels}
           handleAddHost={handleAddHost}
           handleOpenHostSettings={handleOpenHostSettings}
+          onBeforeNavigate={closeSidebar}
         />
       </View>
     </MobilePanelOverlay>
@@ -954,24 +945,22 @@ const styles = StyleSheet.create((theme) => ({
     fontWeight: theme.fontWeight.medium,
   },
   sidebarFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
+    gap: theme.spacing[1],
     paddingHorizontal: theme.spacing[2],
     paddingVertical: theme.spacing[3],
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
   },
-  footerIconRow: {
+  footerItems: {
     flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
-    gap: theme.spacing[2],
-    flexShrink: 0,
+    columnGap: theme.spacing[2],
+    rowGap: 0,
   },
   footerAddProjectButton: {
     minWidth: 0,
     minHeight: 32,
-    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
@@ -991,14 +980,6 @@ const styles = StyleSheet.create((theme) => ({
   },
   footerAddProjectLabelHovered: {
     color: theme.colors.foreground,
-  },
-  footerIconButton: {
-    width: 28,
-    height: 28,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: theme.spacing[1],
-    paddingHorizontal: theme.spacing[1],
   },
   tooltipRow: {
     flexDirection: "row",

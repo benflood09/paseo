@@ -1145,6 +1145,9 @@ export const ar: TranslationResources = {
       settings: "إعدادات",
       closeSidebar: "إغلاق الشريط الجانبي",
     },
+    footer: {
+      usageSummary: "ملخص الاستخدام",
+    },
     help: {
       trigger: "المساعدة والدعم",
       sectionHelp: "المساعدة",
@@ -2166,8 +2169,15 @@ export const ar: TranslationResources = {
         description: "عرض مخطط للتنقل بين المطالبات",
       },
       sidebar: {
-        title: "الشريط الجانبي",
-        description: "اختر العناصر التي تظهر أعلى الشريط الجانبي وترتيبها",
+        header: {
+          title: "الرأس",
+          description: "اختر العناصر التي تظهر أعلى الشريط الجانبي وترتيبها",
+        },
+        footer: {
+          title: "التذييل",
+          description:
+            "اختر العناصر التي تظهر أسفل الشريط الجانبي وترتيبها. يظهر «إضافة مشروع» و«الإعدادات» دائمًا",
+        },
         moveUp: "نقل لأعلى",
         moveDown: "نقل لأسفل",
       },

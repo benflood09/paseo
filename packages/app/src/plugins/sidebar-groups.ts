@@ -1,24 +1,27 @@
-import type { InstalledPlugin, PluginSidebarContribution } from "./types";
+import type { InstalledPlugin, PluginSidebarItemContribution, PluginSidebarSection } from "./types";
 
 export interface PluginSidebarTarget {
   plugin: InstalledPlugin;
-  item: PluginSidebarContribution;
+  item: PluginSidebarItemContribution;
 }
 
+/** One sidebar item, coalesced across every host that contributes it. */
 export interface PluginSidebarGroup {
   key: string;
   pluginId: string;
   contributionId: string;
   title: string;
-  icon: string;
   targets: PluginSidebarTarget[];
 }
 
-export function groupPluginSidebarContributions(plugins: InstalledPlugin[]): PluginSidebarGroup[] {
+export function groupPluginSidebarItems(
+  plugins: InstalledPlugin[],
+  section: PluginSidebarSection,
+): PluginSidebarGroup[] {
   const groups = new Map<string, PluginSidebarGroup>();
   for (const plugin of plugins) {
-    for (const item of plugin.sidebarItems) {
-      const key = `${plugin.id}/sidebar/${item.id}`;
+    for (const item of plugin.sidebarItems[section]) {
+      const key = `${plugin.id}/sidebar-${section}/${item.id}`;
       const existing = groups.get(key);
       if (existing) {
         existing.targets.push({ plugin, item });
@@ -28,7 +31,6 @@ export function groupPluginSidebarContributions(plugins: InstalledPlugin[]): Plu
           pluginId: plugin.id,
           contributionId: item.id,
           title: item.title,
-          icon: item.icon,
           targets: [{ plugin, item }],
         });
       }

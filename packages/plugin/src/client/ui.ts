@@ -63,3 +63,26 @@ export interface ExternalLinkProps {
   onError?: (error: unknown) => void;
 }
 export declare const ExternalLink: ComponentType<ExternalLinkProps>;
+
+export type SidebarIcon = string | ComponentType<{ size: number; color: string }>;
+export interface SidebarRowProps {
+  /** A Lucide icon name or a component. */
+  icon?: SidebarIcon;
+  /** Defaults to the item's registered title. */
+  label?: string;
+  onPress(): void;
+  active?: boolean;
+  /** Right slot. Renders beside the row's pressable, so a button here presses on its own. */
+  trailing?: ReactNode;
+}
+export interface SidebarButtonProps {
+  /** A Lucide icon name or a component. */
+  icon: SidebarIcon;
+  /** Tooltip and accessibility label. Defaults to the item's registered title. */
+  label?: string;
+  onPress(): void;
+}
+/** A sidebar navigation row. Render it from a sidebar item's `Component`. */
+export declare const SidebarRow: ComponentType<SidebarRowProps>;
+/** An icon-sized sidebar button. Render it from a sidebar item's `Component`. */
+export declare const SidebarButton: ComponentType<SidebarButtonProps>;

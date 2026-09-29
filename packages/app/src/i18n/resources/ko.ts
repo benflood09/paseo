@@ -1152,6 +1152,9 @@ export const ko: TranslationResources = {
       settings: "설정",
       closeSidebar: "사이드바 닫기",
     },
+    footer: {
+      usageSummary: "사용량 요약",
+    },
     help: {
       trigger: "도움말 및 지원",
       sectionHelp: "도움말",
@@ -2177,8 +2180,15 @@ export const ko: TranslationResources = {
         description: "프롬프트 사이를 이동하기 위한 개요 표시",
       },
       sidebar: {
-        title: "사이드바",
-        description: "사이드바 상단에 표시할 항목과 순서를 선택하세요",
+        header: {
+          title: "헤더",
+          description: "사이드바 상단에 표시할 항목과 순서를 선택하세요",
+        },
+        footer: {
+          title: "푸터",
+          description:
+            "사이드바 하단에 표시할 항목과 순서를 선택하세요. 프로젝트 추가와 설정은 항상 표시됩니다",
+        },
         moveUp: "위로 이동",
         moveDown: "아래로 이동",
       },

@@ -13,7 +13,8 @@ function installed(): InstalledPlugin {
     cleanup: () => {},
     settingsScreens: [],
     surfaces: [],
-    sidebarItems: [],
+    sidebarItems: { header: [], footer: [] },
+    legacySidebarItems: [],
     workspacePanels: [
       {
         id: "details",

@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import type { InstalledPlugin } from "./types";
-import { groupPluginSidebarContributions } from "./sidebar-groups";
+import { groupPluginSidebarItems } from "./sidebar-groups";
 
 function installed(serverId: string, contributionId = "main"): InstalledPlugin {
   return {
@@ -13,14 +13,11 @@ function installed(serverId: string, contributionId = "main"): InstalledPlugin {
     queryClient: new QueryClient(),
     settingsScreens: [],
     surfaces: [{ id: "surface", Component: () => null }],
-    sidebarItems: [
-      {
-        id: contributionId,
-        title: "Example",
-        icon: "Blocks",
-        surface: "surface",
-      },
-    ],
+    sidebarItems: {
+      header: [{ id: contributionId, title: "Example", Component: () => null }],
+      footer: [{ id: "status", title: "Status", Component: () => null }],
+    },
+    legacySidebarItems: [],
     workspacePanels: [],
     commandCenterItems: [],
     clientSlashCommands: [],
@@ -31,9 +28,9 @@ function installed(serverId: string, contributionId = "main"): InstalledPlugin {
   };
 }
 
-describe("groupPluginSidebarContributions", () => {
+describe("groupPluginSidebarItems", () => {
   it("coalesces the same plugin contribution across hosts", () => {
-    const groups = groupPluginSidebarContributions([installed("host-a"), installed("host-b")]);
+    const groups = groupPluginSidebarItems([installed("host-a"), installed("host-b")], "header");
 
     expect(groups).toHaveLength(1);
     expect(groups[0]?.targets.map((target) => target.plugin.serverId)).toEqual([
@@ -43,14 +40,20 @@ describe("groupPluginSidebarContributions", () => {
   });
 
   it("keeps different contribution ids separate", () => {
-    const groups = groupPluginSidebarContributions([
-      installed("host-a", "main"),
-      installed("host-b", "settings"),
-    ]);
+    const groups = groupPluginSidebarItems(
+      [installed("host-a", "main"), installed("host-b", "settings")],
+      "header",
+    );
 
     expect(groups.map((group) => group.key)).toEqual([
-      "example/sidebar/main",
-      "example/sidebar/settings",
+      "example/sidebar-header/main",
+      "example/sidebar-header/settings",
     ]);
+  });
+
+  it("groups only the requested section", () => {
+    const groups = groupPluginSidebarItems([installed("host-a")], "footer");
+
+    expect(groups.map((group) => group.key)).toEqual(["example/sidebar-footer/status"]);
   });
 });

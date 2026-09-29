@@ -1,4 +1,3 @@
-import { PluginClientStateProvider } from "@getpaseo/plugin/client/host";
 import type {
   PluginButtonBehavior,
   PluginButtonIcon,
@@ -14,7 +13,6 @@ import { useTranslation } from "react-i18next";
 import {
   MenuRoot,
   MenuTrigger,
-  MenuSurface,
   MenuItem,
   MenuSeparator,
   MenuSubTrigger,
@@ -30,12 +28,17 @@ import {
 } from "@/components/ui/icon-button-chrome";
 import { composerPillStyles } from "@/composer/pill-styles";
 import { useIsCompactFormFactor } from "@/constants/layout";
-import { ToastApiProvider, useToast } from "@/contexts/toast-context";
+import { useToast } from "@/contexts/toast-context";
 import { useHostRuntimeClient, useHosts } from "@/runtime/host-runtime";
 import type { Theme } from "@/styles/theme";
 import { createPluginClientStateSource } from "../client-state/source";
 import { Icon } from "../icons";
-import { PluginRuntimeBoundary } from "../runtime-boundary";
+import {
+  PluginEnvironmentProvider,
+  PluginPopoverContent,
+  PluginPopoverSurface,
+  type PluginEnvironment,
+} from "../popover";
 import { SurfaceErrorBoundary } from "../surface-error-boundary";
 import { toPluginTheme } from "../theme";
 import { buttonMatches, type RegisteredPluginButton } from "./model";
@@ -44,8 +47,7 @@ import { pluginButtonStore } from "./store";
 interface ButtonView {
   entry: RegisteredPluginButton;
   props: PluginHostProps & RegisteredPluginButton["context"];
-  client: NonNullable<ReturnType<typeof useHostRuntimeClient>>;
-  state: ReturnType<typeof createPluginClientStateSource>;
+  environment: PluginEnvironment;
   toast: ReturnType<typeof useToast>;
 }
 
@@ -73,15 +75,9 @@ function resolvePlatform(): PluginHostProps["layout"]["platform"] {
   return "web";
 }
 
-// These providers live inside the surface content as well as around its trigger. Native sheets
-// teleport their children, so providers around MenuRoot alone cannot reach the plugin body.
 function ButtonEnvironment({ view, children }: { view: ButtonView; children: ReactNode }) {
   return (
-    <ToastApiProvider api={view.toast}>
-      <PluginRuntimeBoundary plugin={view.entry.installation} client={view.client}>
-        <PluginClientStateProvider source={view.state}>{children}</PluginClientStateProvider>
-      </PluginRuntimeBoundary>
-    </ToastApiProvider>
+    <PluginEnvironmentProvider environment={view.environment}>{children}</PluginEnvironmentProvider>
   );
 }
 
@@ -184,9 +180,9 @@ function ButtonBody({
   if (behavior.kind === "popover") {
     const Content = behavior.Content;
     return (
-      <View style={styles.content}>
+      <PluginPopoverContent>
         <Content {...view.props} close={close} />
-      </View>
+      </PluginPopoverContent>
     );
   }
   if (behavior.kind !== "menu") return null;
@@ -336,19 +332,15 @@ function ButtonControl({ view }: { view: ButtonView }) {
         </TooltipContent>
       </Tooltip>
       {expanded ? (
-        <MenuSurface
+        <PluginPopoverSurface
           sheetTitle={button.title}
           side={composer ? "top" : "bottom"}
           align={composer ? "start" : "end"}
           offset={composer ? 12 : 4}
-          minWidth={280}
-          maxWidth={420}
-          maxHeight={440}
-          scrollable
           pages={pages}
         >
           <ButtonSurfaceBody view={view} behavior={button.behavior} path={ROOT_PATH} />
-        </MenuSurface>
+        </PluginPopoverSurface>
       ) : null}
     </MenuRoot>
   );
@@ -398,9 +390,13 @@ function createButtonView({
   if (!client) return null;
   return {
     entry,
-    client,
     toast,
-    state: createPluginClientStateSource(entry.installation.serverId),
+    environment: {
+      installation: entry.installation,
+      client,
+      toast,
+      state: createPluginClientStateSource(entry.installation.serverId),
+    },
     props: {
       ...entry.context,
       theme,
@@ -511,17 +507,13 @@ function OverflowPages({
   }, [entries, client, toast, theme, hostLabel, compact]);
   const { t } = useTranslation();
   return (
-    <MenuSurface
+    <PluginPopoverSurface
       sheetTitle={t("workspace.git.actions.moreActions")}
       align="end"
-      minWidth={280}
-      maxWidth={420}
-      maxHeight={440}
-      scrollable
       pages={menuContent.pages}
     >
       {menuContent.rows}
-    </MenuSurface>
+    </PluginPopoverSurface>
   );
 }
 
@@ -665,5 +657,4 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 0,
     overflow: "hidden",
   },
-  content: { padding: theme.spacing[3], gap: theme.spacing[2] },
 }));

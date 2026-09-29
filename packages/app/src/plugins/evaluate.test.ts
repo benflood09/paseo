@@ -5,6 +5,7 @@ const runtime = {
   paseo: {},
   async rpc() {},
   openSettings() {},
+  openScreen() {},
   openSurface() {},
   openPanel() {},
   addHeaderButton() {
@@ -72,9 +73,10 @@ describe("evaluatePluginClientBundle", () => {
         function Component() { return null; }
         const schema = { safeParse(value) { return { success: true, data: value }; } };
         globalThis.__pluginRemovals = [
-          plugin.addSurface("main", Component),
+          plugin.addScreen("main", Component),
           plugin.addSettingsScreen({ id: "display", title: "Display", icon: "Settings", Component }),
-          plugin.addSidebarItem({ id: "main", title: "Main", icon: "Blocks", surface: "main" }),
+          plugin.addSidebarHeaderItem({ id: "main", title: "Main", Component }),
+          plugin.addSidebarFooterItem({ id: "status", title: "Status", Component }),
           plugin.addWorkspacePanel({ id: "panel", title: "Panel", icon: "Blocks", context: "workspace", Component }),
           plugin.addCommandCenterItem({ id: "command", title: "Command", icon: "Blocks", context: "global", onSelect() {} }),
           plugin.addSlashCommand({ name: "review", description: "Review", argumentHint: "", context: "workspace", onSubmit() {} }),
@@ -104,7 +106,8 @@ describe("evaluatePluginClientBundle", () => {
       [
         plugin.surfaces,
         plugin.settingsScreens,
-        plugin.sidebarItems,
+        plugin.sidebarItems.header,
+        plugin.sidebarItems.footer,
         plugin.workspacePanels,
         plugin.commandCenterItems,
         plugin.clientSlashCommands,
@@ -123,7 +126,8 @@ describe("evaluatePluginClientBundle", () => {
       [
         plugin.surfaces,
         plugin.settingsScreens,
-        plugin.sidebarItems,
+        plugin.sidebarItems.header,
+        plugin.sidebarItems.footer,
         plugin.workspacePanels,
         plugin.commandCenterItems,
         plugin.clientSlashCommands,
@@ -180,21 +184,90 @@ describe("evaluatePluginClientBundle", () => {
     ).toThrow("Timeline transformer bad-query has invalid item type: settled");
   });
 
-  it("collects a surface and its sidebar placement", () => {
+  it("collects screens and sidebar header and footer items", () => {
     const plugin = evaluatePluginClientBundle(
       "example",
       bundle(`
-        function Surface() { return null; }
-        plugin.addSurface("main", Surface);
-        plugin.addSidebarItem({ id: "main", title: "Example", icon: "Blocks", surface: "main" });
+        function Screen() { return null; }
+        const Item = require("react").memo(function Item() { return null; });
+        plugin.addScreen("main", Screen);
+        plugin.addSidebarHeaderItem({ id: "main", title: " Example ", Component: Item });
+        plugin.addSidebarFooterItem({ id: "main", title: "Status", Component: Item });
       `),
     );
 
     expect(plugin.id).toBe("example");
     expect(plugin.surfaces.map((surface) => surface.id)).toEqual(["main"]);
-    expect(plugin.sidebarItems).toEqual([
-      { id: "main", title: "Example", icon: "Blocks", surface: "main" },
+    expect(plugin.sidebarItems.header.map(({ id, title }) => ({ id, title }))).toEqual([
+      { id: "main", title: "Example" },
     ]);
+    expect(plugin.sidebarItems.footer.map(({ id, title }) => ({ id, title }))).toEqual([
+      { id: "main", title: "Status" },
+    ]);
+    expect(plugin.legacySidebarItems).toEqual([]);
+  });
+
+  it("rejects duplicate and malformed sidebar items within a section", () => {
+    expect(() =>
+      evaluatePluginClientBundle(
+        "example",
+        bundle(`
+          function Item() { return null; }
+          plugin.addSidebarFooterItem({ id: "main", title: "One", Component: Item });
+          plugin.addSidebarFooterItem({ id: "main", title: "Two", Component: Item });
+        `),
+      ),
+    ).toThrow("Duplicate sidebar footer item: main");
+    expect(() =>
+      evaluatePluginClientBundle(
+        "example",
+        bundle(`plugin.addSidebarHeaderItem({ id: "main", title: "Main", Component: "Main" });`),
+      ),
+    ).toThrow("Sidebar item main is not a component");
+    expect(() =>
+      evaluatePluginClientBundle(
+        "example",
+        bundle(
+          `plugin.addSidebarHeaderItem({ id: "main", title: " ", Component() { return null; } });`,
+        ),
+      ),
+    ).toThrow("Sidebar item main has no title");
+  });
+
+  it("expands the addSurface and addSidebarItem aliases to a screen and a header item", () => {
+    const plugin = evaluatePluginClientBundle(
+      "example",
+      bundle(`
+        function Surface() { return null; }
+        plugin.addSurface("main", Surface);
+        plugin.addSidebarItem({ id: "entry", title: "Example", icon: "Blocks", surface: "main" });
+      `),
+    );
+
+    expect(plugin.surfaces.map((surface) => surface.id)).toEqual(["main"]);
+    expect(plugin.sidebarItems.header.map(({ id, title }) => ({ id, title }))).toEqual([
+      { id: "entry", title: "Example" },
+    ]);
+    expect(plugin.sidebarItems.header[0]?.Component).toBeTypeOf("function");
+    expect(plugin.sidebarItems.footer).toEqual([]);
+    expect(plugin.legacySidebarItems).toEqual([
+      { id: "entry", title: "Example", icon: "Blocks", surface: "main" },
+    ]);
+  });
+
+  it("releases both registrations of an addSidebarItem alias", () => {
+    const plugin = evaluatePluginClientBundle(
+      "example",
+      bundle(`
+        plugin.addScreen("main", function Screen() { return null; });
+        const remove = plugin.addSidebarItem({ id: "entry", title: "Example", icon: "Blocks", surface: "main" });
+        remove();
+        plugin.addSidebarHeaderItem({ id: "entry", title: "Replacement", Component() { return null; } });
+      `),
+    );
+
+    expect(plugin.sidebarItems.header.map((item) => item.title)).toEqual(["Replacement"]);
+    expect(plugin.legacySidebarItems).toEqual([]);
   });
 
   it("collects a declarative attachment source", () => {

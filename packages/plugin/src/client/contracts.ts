@@ -49,6 +49,28 @@ interface PluginNavigableHostProps extends PluginHostProps {
 
 export interface PluginSurfaceProps extends PluginNavigableHostProps {}
 
+export type PluginScreenProps = PluginSurfaceProps;
+
+export interface PluginPopoverProps extends PluginHostProps {
+  close(): void;
+  openScreen(id: string): void;
+}
+
+export interface PluginSidebarItemProps extends PluginHostProps {
+  /** This plugin's screen open on this item's host, else null. */
+  currentScreen: string | null;
+  openScreen(id: string): void;
+  /** Anchored to the item on wide layouts; a bottom sheet on compact layouts. */
+  openPopover(Content: ComponentType<PluginPopoverProps>): void;
+}
+
+export interface PluginSidebarItemContribution {
+  id: string;
+  /** Settings row label, accessibility label, and default label for SidebarRow and SidebarButton. */
+  title: string;
+  Component: ComponentType<PluginSidebarItemProps>;
+}
+
 export interface PluginIconProps {
   name: string;
   size?: number;
@@ -84,10 +106,19 @@ export interface PluginClientOpenPanelOptions extends PluginOpenPanelOptions {
   agentId?: string;
 }
 
-export interface PluginClientContext extends PluginCommandCapabilities {
-  addSettingsScreen(contribution: PluginSettingsScreenContribution): PluginCleanup;
+// COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
+interface PluginClientContextAliases {
+  /** @deprecated Use `addScreen`. */
   addSurface(id: string, Component: ComponentType<PluginSurfaceProps>): PluginCleanup;
+  /** @deprecated Use `addSidebarHeaderItem`. */
   addSidebarItem(contribution: PluginSidebarContribution): PluginCleanup;
+}
+
+export interface PluginClientContext extends PluginCommandCapabilities, PluginClientContextAliases {
+  addSettingsScreen(contribution: PluginSettingsScreenContribution): PluginCleanup;
+  addScreen(id: string, Component: ComponentType<PluginScreenProps>): PluginCleanup;
+  addSidebarHeaderItem(contribution: PluginSidebarItemContribution): PluginCleanup;
+  addSidebarFooterItem(contribution: PluginSidebarItemContribution): PluginCleanup;
   addWorkspacePanel(contribution: PluginWorkspacePanelContribution): PluginCleanup;
   addCommandCenterItem(contribution: PluginCommandCenterItemContribution): PluginCleanup;
   addSlashCommand(contribution: PluginClientSlashCommandContribution): PluginCleanup;
@@ -128,6 +159,7 @@ export interface PluginSurfaceContribution {
   Component: ComponentType<PluginSurfaceProps>;
 }
 
+/** @deprecated Use `PluginSidebarItemContribution` with `addSidebarHeaderItem`. */
 export interface PluginSidebarContribution {
   id: string;
   title: string;
@@ -174,6 +206,8 @@ export interface PluginCommandCapabilities {
     contract: PluginRpcContract<InputSchema, OutputSchema>,
     input: ZodInput<InputSchema>,
   ): Promise<ZodOutput<OutputSchema>>;
+  openScreen(id: string): void;
+  /** @deprecated Use `openScreen`. */
   openSurface(id: string): void;
   openSettings(id: string): void;
 }

@@ -238,6 +238,28 @@ describe("loadAppSettingsFromStorage", () => {
     expect(result.sidebarNavItems).toEqual([]);
   });
 
+  it("loads stored sidebar footer items in order and defaults them to empty", async () => {
+    expect((await loadAppSettingsFromStorage(makeDeps())).sidebarFooterItems).toEqual([]);
+
+    const deps = makeDeps({
+      storage: createInMemoryKeyValueStorage({
+        [APP_SETTINGS_KEY]: JSON.stringify({
+          sidebarFooterItems: [
+            { key: "help", visible: false },
+            { key: "plugin:sync:status", visible: true },
+          ],
+        }),
+      }),
+    });
+
+    const result = await loadAppSettingsFromStorage(deps);
+
+    expect(result.sidebarFooterItems).toEqual([
+      { key: "help", visible: false },
+      { key: "plugin:sync:status", visible: true },
+    ]);
+  });
+
   it("collapses legacy diff destinations into the former Explorer choice", async () => {
     const deps = makeDeps({
       storage: createInMemoryKeyValueStorage({

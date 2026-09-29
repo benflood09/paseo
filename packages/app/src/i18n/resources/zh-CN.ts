@@ -1137,6 +1137,9 @@ export const zhCN: TranslationResources = {
       settings: "设置",
       closeSidebar: "关闭侧边栏",
     },
+    footer: {
+      usageSummary: "用量摘要",
+    },
     help: {
       trigger: "帮助与支持",
       sectionHelp: "帮助",
@@ -2142,8 +2145,14 @@ export const zhCN: TranslationResources = {
         description: "显示用于在提示词之间跳转的大纲",
       },
       sidebar: {
-        title: "侧边栏",
-        description: "选择侧边栏顶部显示的项目及其顺序",
+        header: {
+          title: "顶部",
+          description: "选择侧边栏顶部显示的项目及其顺序",
+        },
+        footer: {
+          title: "底部",
+          description: "选择侧边栏底部显示的项目及其顺序。添加项目和设置始终显示",
+        },
         moveUp: "上移",
         moveDown: "下移",
       },

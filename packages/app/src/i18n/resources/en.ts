@@ -1153,6 +1153,9 @@ export const en = {
       settings: "Settings",
       closeSidebar: "Close sidebar",
     },
+    footer: {
+      usageSummary: "Usage summary",
+    },
     help: {
       trigger: "Help and support",
       sectionHelp: "Help",
@@ -2290,8 +2293,15 @@ export const en = {
         description: "Show an outline for jumping between prompts",
       },
       sidebar: {
-        title: "Sidebar",
-        description: "Choose which items appear at the top of the sidebar and in what order",
+        header: {
+          title: "Header",
+          description: "Choose which items appear at the top of the sidebar and in what order",
+        },
+        footer: {
+          title: "Footer",
+          description:
+            "Choose which items appear at the bottom of the sidebar and in what order. Add project and Settings always show",
+        },
         moveUp: "Move up",
         moveDown: "Move down",
       },

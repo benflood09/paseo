@@ -1181,6 +1181,9 @@ export const fr: TranslationResources = {
       settings: "Paramètres",
       closeSidebar: "Fermer la barre latérale",
     },
+    footer: {
+      usageSummary: "Résumé de l'utilisation",
+    },
     help: {
       trigger: "Aide et assistance",
       sectionHelp: "Aide",
@@ -2222,8 +2225,16 @@ export const fr: TranslationResources = {
         description: "Afficher un plan pour passer d’une requête à l’autre",
       },
       sidebar: {
-        title: "Barre latérale",
-        description: "Choisissez les éléments affichés en haut de la barre latérale et leur ordre",
+        header: {
+          title: "En-tête",
+          description:
+            "Choisissez les éléments affichés en haut de la barre latérale et leur ordre",
+        },
+        footer: {
+          title: "Pied",
+          description:
+            "Choisissez les éléments affichés en bas de la barre latérale et leur ordre. Ajouter un projet et Paramètres restent toujours visibles",
+        },
         moveUp: "Déplacer vers le haut",
         moveDown: "Déplacer vers le bas",
       },

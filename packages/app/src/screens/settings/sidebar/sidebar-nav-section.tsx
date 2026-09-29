@@ -5,10 +5,16 @@ import type { TFunction } from "i18next";
 import {
   ArrowDown,
   ArrowUp,
+  Blocks,
   CalendarClock,
+  CircleHelp,
+  Gauge,
   History,
+  Import,
+  Percent,
   Plus,
   Search,
+  Server,
   type LucideIcon,
 } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
@@ -16,13 +22,13 @@ import { Button } from "@/components/ui/button";
 import { Shortcut } from "@/components/ui/shortcut";
 import { Switch } from "@/components/ui/switch";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
-import { resolvePluginIcon } from "@/plugins/icons";
 import { SettingsSection } from "@/components/settings/headings/settings-section";
 import {
   builtinSidebarNavLabelKey,
   builtinSidebarNavShortcutAction,
-  type BuiltinSidebarNavId,
+  type BuiltinSidebarItemId,
   type SidebarNavItem,
+  type SidebarSection,
 } from "@/sidebar-nav/model";
 import { useSidebarNavItems } from "@/sidebar-nav/use-sidebar-nav-items";
 import { settingsStyles } from "@/styles/settings";
@@ -36,12 +42,20 @@ const ThemedArrowDown = withUnistyles(ArrowDown);
 const moveUpIcon = <ThemedArrowUp size={ICON_SIZE.sm} uniProps={mutedColorMapping} />;
 const moveDownIcon = <ThemedArrowDown size={ICON_SIZE.sm} uniProps={mutedColorMapping} />;
 
-const BUILTIN_ICONS: Record<BuiltinSidebarNavId, LucideIcon> = {
+const BUILTIN_ICONS: Record<BuiltinSidebarItemId, LucideIcon> = {
   "new-workspace": Plus,
   history: History,
   search: Search,
   schedules: CalendarClock,
+  "usage-summary": Percent,
+  hosts: Server,
+  import: Import,
+  usage: Gauge,
+  help: CircleHelp,
 };
+
+/** Plugin items register no icon, so every plugin row shares this one. */
+const PLUGIN_ICON = Blocks;
 
 function NavIcon({ Icon, color = "" }: { Icon: LucideIcon; color?: string }) {
   return <Icon size={ICON_SIZE.md} color={color} />;
@@ -50,7 +64,7 @@ function NavIcon({ Icon, color = "" }: { Icon: LucideIcon; color?: string }) {
 const ThemedNavIcon = withUnistyles(NavIcon);
 
 function navItemIcon(item: SidebarNavItem): LucideIcon {
-  return item.kind === "builtin" ? BUILTIN_ICONS[item.id] : resolvePluginIcon(item.group.icon);
+  return item.kind === "builtin" ? BUILTIN_ICONS[item.id] : PLUGIN_ICON;
 }
 
 function navItemLabel(t: TFunction, item: SidebarNavItem): string {
@@ -134,15 +148,26 @@ function SidebarNavRow({
   );
 }
 
-export function SidebarNavSection(): ReactElement {
+const SECTION_COPY = {
+  header: {
+    title: "settings.appearance.sidebar.header.title",
+    info: "settings.appearance.sidebar.header.description",
+  },
+  footer: {
+    title: "settings.appearance.sidebar.footer.title",
+    info: "settings.appearance.sidebar.footer.description",
+  },
+} as const satisfies Record<SidebarSection, { title: string; info: string }>;
+
+function SidebarItemsCard({ section }: { section: SidebarSection }): ReactElement {
   const { t } = useTranslation();
-  const { items, setVisible, move } = useSidebarNavItems();
+  const { items, setVisible, move } = useSidebarNavItems(section);
 
   return (
     <SettingsSection
-      title={t("settings.appearance.sidebar.title")}
-      info={t("settings.appearance.sidebar.description")}
-      testID="sidebar-nav-section"
+      title={t(SECTION_COPY[section].title)}
+      info={t(SECTION_COPY[section].info)}
+      testID={`sidebar-nav-section-${section}`}
     >
       <View style={settingsStyles.card}>
         {items.map((item, index) => (
@@ -157,6 +182,16 @@ export function SidebarNavSection(): ReactElement {
         ))}
       </View>
     </SettingsSection>
+  );
+}
+
+/** Settings > Sidebar: one card per section. Add project and Settings are fixed and not listed. */
+export function SidebarNavSection(): ReactElement {
+  return (
+    <>
+      <SidebarItemsCard section="header" />
+      <SidebarItemsCard section="footer" />
+    </>
   );
 }
 

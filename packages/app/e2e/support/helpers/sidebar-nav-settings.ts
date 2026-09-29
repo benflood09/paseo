@@ -58,7 +58,8 @@ export async function seedSidebarNavPreferences(
 export async function openSidebarNavSettings(page: Page): Promise<void> {
   await openSettings(page);
   await openSettingsSection(page, "sidebar");
-  await expect(page.getByTestId("sidebar-nav-section")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("sidebar-nav-section-header")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("sidebar-nav-section-footer")).toBeVisible();
 }
 
 export async function leaveSettings(page: Page): Promise<void> {
@@ -147,4 +148,95 @@ async function expectVerticalOrder(
       { message: `Expected ${subject} in order`, timeout: 15_000 },
     )
     .toEqual(keys);
+}
+
+/** Persisted footer key -> the testID the app shell renders that item with. */
+const SHELL_FOOTER_TEST_IDS = {
+  hosts: "sidebar-hosts-trigger",
+  import: "sidebar-import-session",
+  usage: "sidebar-usage",
+  help: "sidebar-help",
+} as const;
+
+export type SidebarFooterKey = keyof typeof SHELL_FOOTER_TEST_IDS;
+
+function shellFooterItem(page: Page, key: SidebarFooterKey): Locator {
+  return page.locator(`[data-testid="${SHELL_FOOTER_TEST_IDS[key]}"]:visible`).first();
+}
+
+function footerSettingsRows(page: Page): Locator {
+  return page
+    .getByTestId("sidebar-nav-section-footer")
+    .locator('[data-testid^="sidebar-nav-item-"]');
+}
+
+export async function expectFooterSettingsKeys(page: Page, keys: string[]): Promise<void> {
+  await expect
+    .poll(async () =>
+      (
+        await footerSettingsRows(page).evaluateAll((rows) =>
+          rows.map((row) => row.getAttribute("data-testid")),
+        )
+      ).map((testID) => testID?.replace("sidebar-nav-item-", "")),
+    )
+    .toEqual(keys);
+}
+
+export async function moveFooterItemUp(page: Page, key: SidebarFooterKey): Promise<void> {
+  await page
+    .getByTestId("sidebar-nav-section-footer")
+    .getByTestId(`sidebar-nav-move-up-${key}`)
+    .click();
+}
+
+export async function setFooterItemVisible(
+  page: Page,
+  key: SidebarFooterKey,
+  visible: boolean,
+): Promise<void> {
+  const toggle = page
+    .getByTestId("sidebar-nav-section-footer")
+    .getByTestId(`sidebar-nav-toggle-${key}`);
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-checked", String(visible));
+}
+
+/** Footer items sit in one wrapping row, so order reads left to right. */
+export async function expectFooterOrder(page: Page, keys: SidebarFooterKey[]): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const measured = await Promise.all(
+          keys.map(async (key) => ({ key, box: await shellFooterItem(page, key).boundingBox() })),
+        );
+        if (measured.some((entry) => entry.box === null)) return null;
+        return measured
+          .sort((a, b) => a.box!.y - b.box!.y || a.box!.x - b.box!.x)
+          .map((entry) => entry.key);
+      },
+      { message: "Expected footer items in order", timeout: 15_000 },
+    )
+    .toEqual(keys);
+}
+
+export async function expectFooterItemHidden(page: Page, key: SidebarFooterKey): Promise<void> {
+  await expect(page.locator(`[data-testid="${SHELL_FOOTER_TEST_IDS[key]}"]:visible`)).toHaveCount(
+    0,
+  );
+}
+
+export async function expectStoredSidebarFooter(
+  page: Page,
+  expected: SidebarNavPreference[],
+): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate((key) => {
+          const raw = localStorage.getItem(key);
+          return raw ? (JSON.parse(raw).sidebarFooterItems ?? null) : null;
+        }, APP_SETTINGS_KEY),
+      { timeout: 15_000 },
+    )
+    .toEqual(expected);
 }

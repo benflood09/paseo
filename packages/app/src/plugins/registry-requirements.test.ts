@@ -30,6 +30,7 @@ function registry(version: string) {
         openSettings() {
           cleanups++;
         },
+        openScreen() {},
         openSurface() {},
         openPanel() {},
         addComposerPill: () => ({ update() {}, remove() {} }),

@@ -259,12 +259,23 @@ export default function contribute(server: PluginServerContext) {
 
 ```tsx
 // index.client.tsx
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
+import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Greeting } from "./client/greeting";
 
+function GreetingItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
+  return (
+    <SidebarRow
+      icon="MessageCircle"
+      active={currentScreen === "main"}
+      onPress={() => openScreen("main")}
+    />
+  );
+}
+
 export default function contribute(client: PluginClientContext) {
-  client.addSurface("main", Greeting);
-  client.addSidebarItem({ id: "main", title: "Greeting", icon: "MessageCircle", surface: "main" });
+  client.addScreen("main", Greeting);
+  client.addSidebarHeaderItem({ id: "main", title: "Greeting", Component: GreetingItem });
   return () => {};
 }
 ```
@@ -321,7 +332,7 @@ existing agent-context instances, but it cannot create an agent panel without an
 Command Center callbacks use the selected host's existing `PaseoApi` for normal Paseo operations.
 They use typed plugin RPC only for plugin-specific backend work. Surface and panel navigation
 belongs to the app; plugins do not receive Expo Router or workspace-layout store access.
-See the public [navigation fields](../public-docs/plugins/reference.md#surfaces-and-sidebar-items)
+See the public [navigation fields](../public-docs/plugins/reference.md#screens-and-sidebar-items)
 and [external links and workspace browsers](../public-docs/plugins/reference.md#external-links-and-workspace-browsers)
 for the author-facing contract.
 
@@ -392,6 +403,25 @@ Register a usage source from `index.server.ts` with `server.registerUsageSource(
 
 The daemon calls discovery for `usage.list_reports`; the client gates this RPC on `server_info.features.usageSources`. The old `provider.usage.list` RPC maps discovered reports for older clients. See the [public usage source reference](../public-docs/plugins/reference.md#usage-sources) for the author contract and minimum version.
 
+## Contribute sidebar items
+
+Sidebar header and footer items are plugin components, not descriptors. The
+[public reference](../public-docs/plugins/reference.md#sidebar-items) owns the author API. The host
+lives in `packages/app/src/plugins/sidebar-items/`; `packages/app/src/sidebar-nav/model.ts` resolves
+one section's order from built-ins, plugin groups, and the section's preference
+(`sidebarNavItems` or `sidebarFooterItems`).
+
+- The item's `Component` renders directly in the section, with no wrapper, so a footer
+  `SidebarButton` joins the wrapping icon row and a full-width component takes its own line.
+- `openPopover` opens through the same `PluginPopoverSurface` as header buttons
+  (`plugins/popover.tsx`). The kit components attach themselves as the menu anchor. An item that
+  renders no kit component anchors to its section container.
+- `SidebarRow.trailing` is a sibling of the row's `Pressable`; web cannot nest buttons.
+- `addSurface`, `openSurface`, and `addSidebarItem` are undocumented aliases, tagged
+  `COMPAT(pluginSidebarAliases)`. `addSidebarItem` expands to a header item rendering
+  `SidebarRow`, keeps its `plugin:<pluginId>:<id>` settings key, and is also recorded in
+  `legacySidebarItems` so `/plugin/<id>/sidebar/<item>` routes keep resolving.
+
 ## Contribute buttons
 
 Header buttons and composer pills share the client-only descriptor and registration lifecycle in
@@ -461,7 +491,7 @@ be rendered intact. The daemon advertises this RPC through
 
 `addSlashCommand` registers an agent- or workspace-context command in the composer. The
 callback runs in the app, receives the trimmed text after the command name as `args`, and receives
-the same `paseo`, `rpc`, `openSurface`, workspace, agent, and `openPanel` capabilities as the matching
+the same `paseo`, `rpc`, `openScreen`, workspace, agent, and `openPanel` capabilities as the matching
 Command Center callback.
 
 ```ts

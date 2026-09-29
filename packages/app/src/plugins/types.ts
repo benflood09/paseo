@@ -10,6 +10,7 @@ import type {
   PluginClientSlashCommandContribution,
   PluginComposerPillContribution,
   PluginSidebarContribution,
+  PluginSidebarItemContribution,
   PluginSurfaceContribution,
   PluginSettingsScreenContribution,
   PluginTimelineRendererContribution,
@@ -17,6 +18,8 @@ import type {
   PluginPanelLocation,
   PluginWorkspacePanelContribution,
 } from "@getpaseo/plugin/client";
+
+export type PluginSidebarSection = "header" | "footer";
 
 export type EvaluatedPluginWorkspacePanelContribution = PluginWorkspacePanelContribution & {
   locations: readonly PluginPanelLocation[];
@@ -27,7 +30,10 @@ export interface EvaluatedPlugin {
   cleanup: PluginCleanup;
   surfaces: PluginSurfaceContribution[];
   settingsScreens: PluginSettingsScreenContribution[];
-  sidebarItems: PluginSidebarContribution[];
+  sidebarItems: Record<PluginSidebarSection, PluginSidebarItemContribution[]>;
+  // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
+  /** `addSidebarItem` registrations, so `/plugin/<id>/sidebar/<item>` routes keep resolving. */
+  legacySidebarItems: PluginSidebarContribution[];
   workspacePanels: EvaluatedPluginWorkspacePanelContribution[];
   commandCenterItems: PluginCommandCenterItemContribution[];
   clientSlashCommands: PluginClientSlashCommandContribution[];
@@ -51,6 +57,7 @@ export type {
   PluginClientSlashCommandContribution,
   PluginComposerPillContribution,
   PluginSidebarContribution,
+  PluginSidebarItemContribution,
   PluginSurfaceContribution,
   PluginSettingsScreenContribution,
   PluginThemeContribution,

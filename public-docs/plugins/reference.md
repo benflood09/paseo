@@ -14,7 +14,7 @@ Migrating an existing plugin? Follow the standalone [runtime-entry migration gui
 
 Local plugins are directory sources installed into one Paseo daemon. A plugin can contribute:
 
-- React Native surfaces and sidebar items to Paseo clients;
+- React Native screens and sidebar header and footer items to Paseo clients;
 - workspace and agent panels opened as workspace tabs;
 - global, workspace, and agent actions in the Command Center;
 - slash commands in the message composer;
@@ -98,7 +98,7 @@ and cannot show this new diagnostic.
 At least one entry is required; both accept `.ts` or `.tsx`. A directory that still has only the
 old `index.ts` fails to load and points at the [migration guide](/docs/plugins/migration).
 
-Plugin, surface, sidebar-item, workspace-panel, Command Center item, attachment-source, and
+Plugin, screen, sidebar-item, workspace-panel, Command Center item, attachment-source, and
 slash-command IDs start with a lowercase letter and contain lowercase letters, numbers, or hyphens.
 
 The generated `package.json` installs `@getpaseo/plugin` and the other host modules as development
@@ -263,7 +263,7 @@ for remote workspaces; `localhost` URLs refer to that desktop.
 | Target host/workspace is unknown or its workspace list has not loaded | Throws `Workspace is unavailable on the requested host.` before creating a tab |
 
 Use the [settings API](#settings-screens) for typed host-scoped persistence across clients.
-Use `openSettings`, `openSurface`, and `openPanel` for your own registered contributions.
+Use `openSettings`, `openScreen`, and `openPanel` for your own registered contributions.
 
 ### Server runtime
 
@@ -346,7 +346,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { Main } from "./client/main";
 
 export default function contribute(client: PluginClientContext) {
-  client.addSurface("main", Main);
+  client.addScreen("main", Main);
   return () => {};
 }
 ```
@@ -676,18 +676,19 @@ saved; environment overrides are not persisted with it.
 
 Read logger output with `paseo plugin logs lifecycle-logger` or the host's `daemon.log`.
 
-## Surfaces and sidebar items
+## Screens and sidebar items
 
-Register a component, then point a sidebar item at its surface ID:
+A screen is a full page of plugin UI. A sidebar item is a component Paseo renders in the sidebar
+header or footer; it decides what a press does. Register the screen, then an item that opens it:
 
 `client/main.tsx`:
 
 ```tsx
-import type { PluginSurfaceProps } from "@getpaseo/plugin/client";
+import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { useMemo } from "react";
 import { Text, View } from "react-native";
 
-export function Main({ theme, host, layout }: PluginSurfaceProps) {
+export function Main({ theme, host, layout }: PluginScreenProps) {
   const styles = useMemo(
     () => ({
       screen: {
@@ -711,23 +712,29 @@ export function Main({ theme, host, layout }: PluginSurfaceProps) {
 
 `index.client.tsx`:
 
-```ts
-import type { PluginClientContext } from "@getpaseo/plugin/client";
+```tsx
+import type { PluginClientContext, PluginSidebarItemProps } from "@getpaseo/plugin/client";
+import { SidebarRow } from "@getpaseo/plugin/client/ui";
 import { Main } from "./client/main";
 
+function MainItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
+  return (
+    <SidebarRow
+      icon="Blocks"
+      active={currentScreen === "main"}
+      onPress={() => openScreen("main")}
+    />
+  );
+}
+
 export default function contribute(client: PluginClientContext) {
-  client.addSurface("main", Main);
-  client.addSidebarItem({
-    id: "main",
-    title: "My plugin",
-    icon: "Blocks",
-    surface: "main",
-  });
+  client.addScreen("main", Main);
+  client.addSidebarHeaderItem({ id: "main", title: "My plugin", Component: MainItem });
   return () => {};
 }
 ```
 
-`PluginSurfaceProps` contains:
+`PluginScreenProps` contains:
 
 | Field        | Meaning                                                                                                                                                                                                                                                                                                                           |
 | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -736,7 +743,59 @@ export default function contribute(client: PluginClientContext) {
 | `layout`     | `compact` and the `ios`, `android`, or `web` platform.                                                                                                                                                                                                                                                                            |
 | `navigation` | Optional client navigation. `openAgent({ agentId, serverId? })` and `openWorkspace({ workspaceId, serverId? })` open targets on `serverId`, or on the selected host when omitted. `openBrowser({ url, workspaceId, serverId? })` is available only on Electron; see [links and browsers](#external-links-and-workspace-browsers). |
 
-Paseo owns the route, header, close action, host picker, error boundary, and query client. The plugin owns the surface body.
+Paseo owns the route, header, close action, host picker, error boundary, and query client. The plugin owns the screen body.
+
+### Sidebar items
+
+`addSidebarHeaderItem` adds an item to the list at the top of the sidebar. `addSidebarFooterItem`
+adds one to the footer row below **Add project**. Both take `{ id, title, Component }`. `title`
+labels the item in Settings > Sidebar, where users reorder and hide items, and is the default
+label and accessibility label of `SidebarRow` and `SidebarButton`. Settings shows a generic plugin
+icon for every plugin item.
+
+`Component` receives `PluginSidebarItemProps`:
+
+| Field                     | Meaning                                                                                        |
+| ------------------------- | ---------------------------------------------------------------------------------------------- |
+| `theme`, `host`, `layout` | As in `PluginScreenProps`.                                                                     |
+| `currentScreen`           | The ID of this plugin's screen open on the item's host, or `null`.                             |
+| `openScreen(id)`          | Opens one of this plugin's screens. Unknown IDs throw.                                         |
+| `openPopover(Content)`    | Opens `Content` anchored to the item on wide layouts and as a bottom sheet on compact layouts. |
+
+`Content` receives `theme`, `host`, `layout`, `close()`, and `openScreen(id)`. Opening a screen
+closes the popover.
+
+Render the item with the sidebar kit from `@getpaseo/plugin/client/ui`:
+
+| Component       | Props and behavior                                                                                                                                                                                                      |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SidebarRow`    | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. |
+| `SidebarButton` | Required `icon`, `onPress`; optional `label` for the tooltip. An icon-sized button for the footer row.                                                                                                                  |
+
+Popovers anchor to the kit component the item renders. The footer wraps: a `SidebarButton` sits
+in the icon row, and a full-width component takes its own line.
+
+```tsx
+import type { PluginSidebarItemProps, PluginPopoverProps } from "@getpaseo/plugin/client";
+import { SidebarButton } from "@getpaseo/plugin/client/ui";
+import { Pressable, Text } from "react-native";
+
+function SyncDetails({ theme, close, openScreen }: PluginPopoverProps) {
+  return (
+    <Pressable onPress={() => openScreen("sync")}>
+      <Text style={{ color: theme.colors.foreground }}>Open sync history</Text>
+    </Pressable>
+  );
+}
+
+function SyncItem({ openPopover }: PluginSidebarItemProps) {
+  return <SidebarButton icon="RefreshCw" onPress={() => openPopover(SyncDetails)} />;
+}
+
+client.addSidebarFooterItem({ id: "sync", title: "Sync", Component: SyncItem });
+```
+
+An item that throws renders nothing; the rest of the sidebar keeps working.
 
 ## Host UI
 
@@ -1399,12 +1458,12 @@ Every callback receives:
 | `context`                 | All                 | Matching discriminator.                                                                                         |
 | `paseo`                   | All                 | Selected host's existing `PaseoApi`.                                                                            |
 | `rpc(contract, input)`    | All                 | Typed call to this installation's daemon-side plugin handler.                                                   |
-| `openSurface(id)`         | All                 | Opens one of this plugin's registered global surfaces.                                                          |
+| `openScreen(id)`          | All                 | Opens one of this plugin's registered screens.                                                                  |
 | `workspace`               | Workspace and agent | Synchronous workspace snapshot.                                                                                 |
 | `agent`                   | Agent               | Synchronous matching agent snapshot.                                                                            |
 | `openPanel(id, options?)` | Workspace and agent | Opens a registered panel in the callback's current context. Pass `{ location: "explorer" }` to target Explorer. |
 
-An agent callback may open either an agent panel or a workspace panel. A workspace callback may open only a workspace panel. Unknown surface and panel IDs fail visibly. Use `paseo` for normal workspace, agent, provider, and daemon-config operations. Use `rpc` for plugin-specific filesystem, credential, vendor, or daemon-local work.
+An agent callback may open either an agent panel or a workspace panel. A workspace callback may open only a workspace panel. Unknown screen and panel IDs fail visibly. Use `paseo` for normal workspace, agent, provider, and daemon-config operations. Use `rpc` for plugin-specific filesystem, credential, vendor, or daemon-local work.
 
 ## Slash commands
 
@@ -1768,7 +1827,7 @@ import type { PluginClientContext } from "@getpaseo/plugin/client";
 import { GreetingButton } from "./client/greeting";
 
 export default function contribute(client: PluginClientContext) {
-  client.addSurface("main", GreetingButton);
+  client.addScreen("main", GreetingButton);
   return () => {};
 }
 ```
@@ -2080,16 +2139,16 @@ The switch is the root `pluginsEnabled` field in `config.json`. After changing i
 
 Use `paseo plugin ls` to read the current status and error.
 
-| Symptom                                                               | Check                                                                                                                                   |
-| --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `This plugin was made for an older version of Paseo`                  | The directory has only an `index.ts` entry. Follow the [migration guide](/docs/plugins/migration).                                      |
-| `Plugin entry points are missing`                                     | Neither `index.client.tsx` nor `index.server.ts` exists with that exact name.                                                           |
-| `server-only module cannot be imported into the plugin client bundle` | Client code imports `server/`. Move the work behind an RPC and import its contract from `shared/`.                                      |
-| `client-only module cannot be imported into the plugin server bundle` | Server code imports `client/`. Register that contribution from `index.client.tsx` instead.                                              |
-| `Node module cannot be imported into the plugin client bundle`        | Client code imports `node:*`. Move the operation to `server/` and call it through an RPC.                                               |
-| Sidebar item is missing                                               | The plugin is `running`, the item references an existing surface, the icon name is valid, and the client is on the installation's host. |
-| Client module is unavailable                                          | Import only the host-provided client modules listed above.                                                                              |
-| RPC rejects                                                           | Check both Zod schemas and the daemon-side handler error.                                                                               |
-| Edited code does not appear                                           | Run `npm run typecheck`, then `paseo plugin reload <id>`.                                                                               |
-| Reload fails                                                          | Read `paseo plugin ls` and `paseo plugin logs <id>`, fix the source error, then reload; Paseo does not restore the previous bundle.     |
-| Plugin exits unexpectedly                                             | Read `paseo plugin logs <id>` for retained initialization, cleanup, stderr, and final crash output.                                     |
+| Symptom                                                               | Check                                                                                                                                              |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `This plugin was made for an older version of Paseo`                  | The directory has only an `index.ts` entry. Follow the [migration guide](/docs/plugins/migration).                                                 |
+| `Plugin entry points are missing`                                     | Neither `index.client.tsx` nor `index.server.ts` exists with that exact name.                                                                      |
+| `server-only module cannot be imported into the plugin client bundle` | Client code imports `server/`. Move the work behind an RPC and import its contract from `shared/`.                                                 |
+| `client-only module cannot be imported into the plugin server bundle` | Server code imports `client/`. Register that contribution from `index.client.tsx` instead.                                                         |
+| `Node module cannot be imported into the plugin client bundle`        | Client code imports `node:*`. Move the operation to `server/` and call it through an RPC.                                                          |
+| Sidebar item is missing                                               | The plugin is `running`, the item is not hidden in Settings > Sidebar, its component does not throw, and the client is on the installation's host. |
+| Client module is unavailable                                          | Import only the host-provided client modules listed above.                                                                                         |
+| RPC rejects                                                           | Check both Zod schemas and the daemon-side handler error.                                                                                          |
+| Edited code does not appear                                           | Run `npm run typecheck`, then `paseo plugin reload <id>`.                                                                                          |
+| Reload fails                                                          | Read `paseo plugin ls` and `paseo plugin logs <id>`, fix the source error, then reload; Paseo does not restore the previous bundle.                |
+| Plugin exits unexpectedly                                             | Read `paseo plugin logs <id>` for retained initialization, cleanup, stderr, and final crash output.                                                |

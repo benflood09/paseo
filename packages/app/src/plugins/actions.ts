@@ -27,6 +27,12 @@ export function createPluginCapabilities(
   runtime: PluginSurfaceRuntime,
   navigation: PluginNavigation,
 ): PluginCommandCapabilities {
+  function openScreen(screenId: string) {
+    if (!plugin.surfaces.some((surface) => surface.id === screenId)) {
+      throw new Error(`Plugin screen is unavailable: ${screenId}`);
+    }
+    navigation.openSurface(plugin.id, screenId);
+  }
   return {
     paseo: runtime.paseo,
     rpc: (contract, input) => callPluginRpc(contract, runtime.invoke, input),
@@ -35,12 +41,9 @@ export function createPluginCapabilities(
         throw new Error(`Plugin settings screen is unavailable: ${screenId}`);
       navigation.openSettings(plugin.id, screenId);
     },
-    openSurface(surfaceId) {
-      if (!plugin.surfaces.some((surface) => surface.id === surfaceId)) {
-        throw new Error(`Plugin surface is unavailable: ${surfaceId}`);
-      }
-      navigation.openSurface(plugin.id, surfaceId);
-    },
+    openScreen,
+    // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
+    openSurface: openScreen,
   };
 }
 
