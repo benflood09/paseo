@@ -25,7 +25,7 @@ export function PluginRuntimeBoundary({ plugin, client, children }: PluginRuntim
   );
 }
 
-/** Always-mounted chrome: it uses the installation's shared runtime and renders on its first frame. */
+/** Sidebar item rows: the installation's shared runtime, so they render on their first frame. */
 export function PluginSharedRuntimeBoundary({
   plugin,
   client,

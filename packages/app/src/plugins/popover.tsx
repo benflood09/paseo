@@ -6,7 +6,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { MenuSurface, type MenuSurfaceProps } from "@/components/ui/menu";
 import { ToastApiProvider, type useToast } from "@/contexts/toast-context";
 import type { createPluginClientStateSource } from "./client-state/source";
-import { PluginSharedRuntimeBoundary } from "./runtime-boundary";
+import { PluginRuntimeBoundary, PluginSharedRuntimeBoundary } from "./runtime-boundary";
 import type { InstalledPlugin } from "./types";
 
 export interface PluginEnvironment {
@@ -16,18 +16,39 @@ export interface PluginEnvironment {
   toast: ReturnType<typeof useToast>;
 }
 
+interface PluginEnvironmentProviderProps {
+  environment: PluginEnvironment;
+  children: ReactNode;
+}
+
 /**
  * The providers plugin UI runs under. Render it around a contribution and again inside every
  * surface it opens: native sheets teleport their children, so providers around the trigger alone
- * cannot reach a popover body.
+ * cannot reach a popover body. The content owns a runtime while mounted, so observations it opens
+ * close when it unmounts, such as when its popover closes.
  */
 export function PluginEnvironmentProvider({
   environment,
   children,
-}: {
-  environment: PluginEnvironment;
-  children: ReactNode;
-}) {
+}: PluginEnvironmentProviderProps) {
+  return (
+    <ToastApiProvider api={environment.toast}>
+      <PluginRuntimeBoundary plugin={environment.installation} client={environment.client}>
+        <PluginClientStateProvider source={environment.state}>{children}</PluginClientStateProvider>
+      </PluginRuntimeBoundary>
+    </ToastApiProvider>
+  );
+}
+
+/**
+ * The providers for a sidebar item's rows: the installation's shared runtime, so a row has content
+ * on its first frame and rows do not each open a client. What a row opens lives as long as the
+ * installation; popovers it opens use `PluginEnvironmentProvider`.
+ */
+export function PluginSidebarItemEnvironmentProvider({
+  environment,
+  children,
+}: PluginEnvironmentProviderProps) {
   return (
     <ToastApiProvider api={environment.toast}>
       <PluginSharedRuntimeBoundary plugin={environment.installation} client={environment.client}>

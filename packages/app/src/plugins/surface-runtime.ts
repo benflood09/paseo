@@ -49,9 +49,9 @@ const sharedRuntimes = new WeakMap<
 >();
 
 /**
- * The installation's runtime for chrome that is always mounted: sidebar items, buttons, and their
- * popovers. Created on first use during render, so their first frame already has content, and
- * shared by every item of the installation. It closes with the installation's lifetime.
+ * The installation's runtime for sidebar item rows. Created on first use during render, so a row's
+ * first frame already has content, and shared by every row of the installation. It closes with the
+ * installation's lifetime, so anything shorter-lived, such as a popover, owns its own runtime.
  */
 export function getSharedPluginSurfaceRuntime(
   client: DaemonClient,
