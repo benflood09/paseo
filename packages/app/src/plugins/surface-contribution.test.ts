@@ -111,7 +111,7 @@ describe("currentPluginScreen", () => {
         pluginId: "review",
         contributionKind: "surface",
         contributionId: "overview",
-        botId: "bot-2",
+        "param.botId": "bot-2",
       }),
     ).toEqual({ screenId: "overview", params: { botId: "bot-2" } });
     expect(currentPluginScreen(plugin, "/h/local/plugin/review/sidebar/legacy", {})).toEqual({
@@ -131,7 +131,7 @@ describe("currentPluginScreen", () => {
 describe("parsePluginOpenScreenInput", () => {
   const plugin = installation("local", ["bot"]);
 
-  it("accepts a registered screen with or without string params", () => {
+  it("accepts a registered screen with or without string params, under any key", () => {
     expect(parsePluginOpenScreenInput(plugin, { screenId: "bot" })).toEqual({
       screenId: "bot",
       params: {},
@@ -139,6 +139,9 @@ describe("parsePluginOpenScreenInput", () => {
     expect(parsePluginOpenScreenInput(plugin, { screenId: "bot", params: { botId: "2" } })).toEqual(
       { screenId: "bot", params: { botId: "2" } },
     );
+    expect(
+      parsePluginOpenScreenInput(plugin, { screenId: "bot", params: { serverId: "x" } }),
+    ).toEqual({ screenId: "bot", params: { serverId: "x" } });
   });
 
   it("throws on a bare id, an unknown screen, or params that are not strings", () => {
@@ -152,8 +155,5 @@ describe("parsePluginOpenScreenInput", () => {
     expect(() => parsePluginOpenScreenInput(plugin, { screenId: "bot", params: ["2"] })).toThrow(
       "must be an object of strings",
     );
-    expect(() =>
-      parsePluginOpenScreenInput(plugin, { screenId: "bot", params: { pluginId: "x" } }),
-    ).toThrow("pluginId is reserved");
   });
 });

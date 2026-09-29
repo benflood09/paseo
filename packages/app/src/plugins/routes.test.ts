@@ -16,7 +16,7 @@ describe("buildPluginSurfaceRoute", () => {
     );
   });
 
-  it("puts screen params in the query, encoded, and leaves the path alone", () => {
+  it("puts screen params in the query under their own prefix, encoded", () => {
     expect(
       buildPluginSurfaceRoute(
         "local",
@@ -24,7 +24,7 @@ describe("buildPluginSurfaceRoute", () => {
         { kind: "surface", id: "bot" },
         { botId: "bot 2", "a&b": "x=y" },
       ),
-    ).toBe("/h/local/plugin/bots/surface/bot?botId=bot%202&a%26b=x%3Dy");
+    ).toBe("/h/local/plugin/bots/surface/bot?param.botId=bot%202&param.a%26b=x%3Dy");
     expect(buildPluginSurfaceRoute("local", "bots", { kind: "surface", id: "bot" }, {})).toBe(
       "/h/local/plugin/bots/surface/bot",
     );
@@ -62,16 +62,32 @@ describe("parsePluginSurfaceRoute", () => {
 });
 
 describe("pluginScreenParamsFromRoute", () => {
-  it("keeps the query's string params and drops the route's own segments", () => {
+  function searchParams(route: string): Record<string, string | string[]> {
+    // Expo Router's search params: the route's segments merged with its query.
+    const url = new URL(route, "http://paseo.test");
+    return {
+      serverId: "local",
+      pluginId: "bots",
+      contributionKind: "surface",
+      contributionId: "bot",
+      ...Object.fromEntries(url.searchParams),
+    };
+  }
+
+  it("round-trips params whose keys match the route's own segments", () => {
+    const params = { serverId: "x", pluginId: "y", botId: "bot-2" };
+    const route = buildPluginSurfaceRoute("local", "bots", { kind: "surface", id: "bot" }, params);
+    expect(pluginScreenParamsFromRoute(searchParams(route))).toEqual(params);
+  });
+
+  it("ignores the route's segments and non-string values", () => {
     expect(
       pluginScreenParamsFromRoute({
         serverId: "local",
-        pluginId: "bots",
-        contributionKind: "surface",
         contributionId: "bot",
-        botId: "bot-2",
-        tags: ["a", "b"],
-        missing: undefined,
+        "param.botId": "bot-2",
+        "param.tags": ["a", "b"],
+        "param.missing": undefined,
       }),
     ).toEqual({ botId: "bot-2" });
   });

@@ -748,9 +748,8 @@ Paseo owns the route, header, close action, host picker, error boundary, and que
 
 `openScreen({ screenId, params })` opens a screen with params, such as the bot a bot screen shows.
 Params live in the screen's URL query, so a reload, back and forward, and a link to the screen keep
-them. Keys and values must be strings. Anything else throws, and so do the route's own keys:
-`serverId`, `pluginId`, `contributionKind`, and `contributionId`. Opening the same screen with other
-params shows the new params.
+them. Any string key works; values must be strings, and anything else throws. Opening the same
+screen with other params shows the new params.
 
 ### Sidebar items
 
@@ -779,7 +778,8 @@ Render the item with the sidebar kit from `@getpaseo/plugin/client/ui`:
 | `SidebarRow`       | Required `onPress`; optional `icon` (Lucide name or `{ size, color }` component), `label`, `active`, `trailing`, `id`. A full-width row. `trailing` renders beside the row's pressable, so a button in it presses on its own. `id` tells rows of one item apart in test IDs. |
 | `SidebarSeparator` | No props. The sidebar's separator line, between groups of rows.                                                                                                                                                                                                              |
 
-A popover opened from a row's `onPress` anchors to that row.
+A popover anchors to the row that was pressed, whether the press landed on the row or on its
+`trailing` content, so a per-row "More" button opens its popover next to its own row.
 
 ```tsx
 import type { PluginSidebarItemProps, PluginPopoverProps } from "@getpaseo/plugin/client";

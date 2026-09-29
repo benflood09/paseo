@@ -11,7 +11,11 @@ function resolveIcon(icon: SidebarIcon) {
   return typeof icon === "string" ? resolvePluginIcon(icon) : icon;
 }
 
-/** An item may render several rows; each anchors the popover its own press opens. */
+/**
+ * An item may render several rows. Any press inside a row, on the row or on its trailing content,
+ * makes that row the popover anchor: the capture-phase responder check runs before the pressed
+ * child claims the touch (native and web), and returns false so the child still handles it.
+ */
 export function SidebarRow({ id, icon, label, onPress, active, trailing }: SidebarRowProps) {
   const frame = useSidebarItemFrame("SidebarRow");
   const { anchorTo, offerAnchor, releaseAnchor } = frame;
@@ -21,21 +25,27 @@ export function SidebarRow({ id, icon, label, onPress, active, trailing }: Sideb
     offerAnchor(node);
     return () => releaseAnchor(node);
   }, [offerAnchor, releaseAnchor]);
+  const anchorHere = useCallback(() => {
+    anchorTo(rowRef.current);
+    return false;
+  }, [anchorTo]);
+  // Keyboard activation skips the responder system, so the row's own press anchors as well.
   const handlePress = useCallback(() => {
     anchorTo(rowRef.current);
     onPress();
   }, [anchorTo, onPress]);
   return (
-    <SidebarHeaderRow
-      icon={icon ? resolveIcon(icon) : null}
-      label={label ?? frame.title}
-      onPress={handlePress}
-      isActive={active}
-      trailing={trailing}
-      testID={id ? `${frame.testID}-${id}` : frame.testID}
-      variant={frame.section === "footer" ? "inline" : "compact"}
-      rowRef={rowRef}
-    />
+    <View ref={rowRef} collapsable={false} onStartShouldSetResponderCapture={anchorHere}>
+      <SidebarHeaderRow
+        icon={icon ? resolveIcon(icon) : null}
+        label={label ?? frame.title}
+        onPress={handlePress}
+        isActive={active}
+        trailing={trailing}
+        testID={id ? `${frame.testID}-${id}` : frame.testID}
+        variant={frame.section === "footer" ? "inline" : "compact"}
+      />
+    </View>
   );
 }
 

@@ -74,8 +74,9 @@ export default function contribute(client) {
 
 /**
  * One header item that renders a group: a row per bot, a separator and a status row. Each bot
- * row opens the bot screen with the bot's id as a param. Two commands add and remove a footer
- * item after setup.
+ * row opens the bot screen with the bot's id as a param, and its trailing More button opens that
+ * bot's popover. Commands open a bot with a `serverId` param, and add and remove a footer item
+ * after setup.
  */
 const BOTS_SOURCE = `import React from "react";
 import { Pressable, Text, View } from "react-native";
@@ -87,7 +88,34 @@ const BOTS = [
 ];
 
 function BotScreen({ theme, params }) {
-  return <View style={{ flex: 1, padding: 24 }}><Text style={{ color: theme.colors.foreground }}>{"Bot screen: " + params.botId}</Text></View>;
+  return (
+    <View style={{ flex: 1, padding: 24, gap: 8 }}>
+      <Text style={{ color: theme.colors.foreground }}>{"Bot screen: " + params.botId}</Text>
+      <Text style={{ color: theme.colors.foregroundMuted }}>{"serverId param: " + (params.serverId ?? "none")}</Text>
+    </View>
+  );
+}
+
+const botMenus = {};
+
+function botMenu(bot) {
+  botMenus[bot.id] ??= function BotMenu({ theme, close }) {
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={{ color: theme.colors.foreground }}>{bot.name + " options"}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={"Close " + bot.name + " options"} onPress={close}><Text style={{ color: theme.colors.foreground }}>Done</Text></Pressable>
+      </View>
+    );
+  };
+  return botMenus[bot.id];
+}
+
+function MoreButton({ theme, bot, onPress }) {
+  return (
+    <Pressable accessibilityRole="button" accessibilityLabel={"More for " + bot.name} onPress={onPress} style={{ paddingHorizontal: 6 }}>
+      <Text style={{ color: theme.colors.foregroundMuted, fontSize: 12 }}>More</Text>
+    </Pressable>
+  );
 }
 
 function BotStatus({ theme, close }) {
@@ -99,7 +127,7 @@ function BotStatus({ theme, close }) {
   );
 }
 
-function BotsItem({ currentScreen, openScreen, openPopover }) {
+function BotsItem({ theme, currentScreen, openScreen, openPopover }) {
   return (
     <>
       {BOTS.map((bot) => (
@@ -110,6 +138,7 @@ function BotsItem({ currentScreen, openScreen, openPopover }) {
           label={bot.name}
           active={currentScreen?.screenId === "bot" && currentScreen.params.botId === bot.id}
           onPress={() => openScreen({ screenId: "bot", params: { botId: bot.id } })}
+          trailing={<MoreButton theme={theme} bot={bot} onPress={() => openPopover(botMenu(bot))} />}
         />
       ))}
       <SidebarSeparator />
@@ -126,6 +155,7 @@ export default function contribute(client) {
   let removeAlerts = null;
   client.addScreen("bot", BotScreen);
   client.addSidebarHeaderItem({ id: "bots", title: "Bots", Component: BotsItem });
+  client.addCommandCenterItem({ id: "open-bot-3", title: "Open bot 3 on server x", icon: "Bot", context: "global", onSelect: (ctx) => ctx.openScreen({ screenId: "bot", params: { botId: "bot-3", serverId: "x" } }) });
   client.addCommandCenterItem({ id: "add-alerts", title: "Add bot alerts", icon: "Bell", context: "global", onSelect: () => {
     if (!removeAlerts) removeAlerts = client.addSidebarFooterItem({ id: "alerts", title: "Bot alerts", Component: AlertsItem });
   } });

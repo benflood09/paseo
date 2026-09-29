@@ -290,8 +290,9 @@ Paseo owns the route, screen header, Lucide icon validation, close action, theme
 and render error boundary. The contributed component owns the complete body below the header.
 
 Screen params ride in the screen route's query string (`plugins/routes.ts`), not in app state, so
-reload, history, links, and the host switcher keep them without a store. The route's own segment
-names share that query in Expo Router's search params, so `openScreen` rejects them as param keys.
+reload, history, links, and the host switcher keep them without a store. Expo Router merges the
+route's segments (`serverId`, `pluginId`, ...) into the same search params as the query, so param
+keys are stored under a `param.` prefix; plugins never see it and may use any key.
 `openScreen` validates its input once (`parsePluginOpenScreenInput`); code past it trusts the
 params.
 
@@ -423,8 +424,11 @@ one section's order from built-ins, plugin groups, and the section's preference
   Help and support, Settings) is fixed app code, not a contribution slot, so the kit has no icon
   button.
 - `openPopover` opens through the same `PluginPopoverSurface` as header buttons
-  (`plugins/popover.tsx`). A `SidebarRow` press moves the menu anchor to that row before calling
-  `onPress`; until a press, the first mounted row holds it. An item that renders no kit component
+  (`plugins/popover.tsx`). Any press inside a `SidebarRow`, including its `trailing` content, moves
+  the menu anchor to that row: a capture-phase `onStartShouldSetResponderCapture` runs before the
+  pressed child claims the touch on native and web, and returns false. Keyboard activation skips
+  the responder system, so the row's own press anchors too. Until a press, the first mounted row
+  holds the anchor. An item that renders no kit component
   anchors to its section container.
 - `SidebarSeparator` reuses the app's separator and cancels the footer's horizontal padding, so
   the line runs edge to edge in both sections.

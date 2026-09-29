@@ -4,8 +4,11 @@ import type { PluginSurfaceContributionIdentity } from "./surface-contribution";
 type PluginSurfaceRoute<Kind extends PluginSurfaceContributionIdentity["kind"]> =
   `/h/${string}/plugin/${string}/${Kind}/${string}`;
 
-/** The screen route's own segments. Screen params share its query, so they can't use these. */
-const ROUTE_PARAM_KEYS = new Set(["serverId", "pluginId", "contributionKind", "contributionId"]);
+/**
+ * Expo Router merges the route's segments (`serverId`, `pluginId`, ...) into the same search params
+ * as the query. Prefixing screen param keys keeps any plugin key clear of them.
+ */
+const SCREEN_PARAM_PREFIX = "param.";
 
 /** Screen params ride in the route's query, so reload, history and deep links keep them. */
 export function buildPluginSurfaceRoute<Identity extends PluginSurfaceContributionIdentity>(
@@ -16,15 +19,15 @@ export function buildPluginSurfaceRoute<Identity extends PluginSurfaceContributi
 ): PluginSurfaceRoute<Identity["kind"]> {
   const path = `/h/${encodeURIComponent(serverId)}/plugin/${encodeURIComponent(pluginId)}/${identity.kind}/${encodeURIComponent(identity.id)}`;
   const query = Object.entries(params)
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .map(
+      ([key, value]) =>
+        `${encodeURIComponent(SCREEN_PARAM_PREFIX + key)}=${encodeURIComponent(value)}`,
+    )
     .join("&");
   return (query ? `${path}?${query}` : path) as PluginSurfaceRoute<Identity["kind"]>;
 }
 
-/**
- * Checks params a plugin passed to `openScreen`: an object of string keys and string values that
- * don't collide with the route's own segments. Throws otherwise.
- */
+/** Checks params a plugin passed to `openScreen`: an object of string values. Throws otherwise. */
 export function parsePluginScreenParams(value: unknown): PluginScreenParams {
   if (value === undefined) return {};
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -35,7 +38,6 @@ export function parsePluginScreenParams(value: unknown): PluginScreenParams {
     if (typeof entry !== "string") {
       throw new Error(`Plugin screen param ${key} must be a string`);
     }
-    if (ROUTE_PARAM_KEYS.has(key)) throw new Error(`Plugin screen param ${key} is reserved`);
     params[key] = entry;
   }
   return params;
@@ -47,8 +49,8 @@ export function pluginScreenParamsFromRoute(
 ): PluginScreenParams {
   const params: PluginScreenParams = {};
   for (const [key, value] of Object.entries(routeParams)) {
-    if (ROUTE_PARAM_KEYS.has(key) || typeof value !== "string") continue;
-    params[key] = value;
+    if (!key.startsWith(SCREEN_PARAM_PREFIX) || typeof value !== "string") continue;
+    params[key.slice(SCREEN_PARAM_PREFIX.length)] = value;
   }
   return params;
 }

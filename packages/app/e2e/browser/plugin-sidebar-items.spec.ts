@@ -66,12 +66,22 @@ async function boxOf(locator: Locator) {
 
 async function expectBotScreen(page: Page, botId: string) {
   await expect(page).toHaveURL(
-    new RegExp(`/plugin/${BOTS_PLUGIN_ID}/surface/bot\\?botId=${botId}$`),
+    new RegExp(`/plugin/${BOTS_PLUGIN_ID}/surface/bot\\?param\\.botId=${botId}$`),
   );
   await expect(page.getByText(`Bot screen: ${botId}`, { exact: true })).toBeVisible();
   await expectRowActive(botRow(page, "bot-1"), botId === "bot-1");
   await expectRowActive(botRow(page, "bot-2"), botId === "bot-2");
   await expectRowActive(botRow(page, "status"), false);
+}
+
+/** The popover opens to the right of `row`, level with it, and away from `elsewhere`. */
+async function expectPopoverBeside(page: Page, text: string, row: Locator, elsewhere: Locator) {
+  const popover = await popoverBox(page, text);
+  const rowBox = await boxOf(row);
+  const otherBox = await boxOf(elsewhere);
+  expect(popover.x).toBeGreaterThanOrEqual(rowBox.x + rowBox.width);
+  expect(Math.abs(popover.y - rowBox.y)).toBeLessThan(40);
+  expect(Math.abs(popover.y - otherBox.y)).toBeGreaterThan(20);
 }
 
 function sidebarFooter(page: Page): Locator {
@@ -301,15 +311,25 @@ test.describe("Plugin sidebar items", () => {
 
     await test.step("a popover opened from a later row anchors to that row", async () => {
       await status.click();
-      const popover = await popoverBox(page, "Bot status details");
-      const row = await boxOf(status);
-      const first = await boxOf(bot1);
-      expect(popover.x).toBeGreaterThanOrEqual(row.x + row.width);
-      expect(Math.abs(popover.y - row.y)).toBeLessThan(40);
-      expect(popover.y - first.y).toBeGreaterThan(40);
-      await qaScreenshot(page, "phase6-desktop-popover-row");
+      await expectPopoverBeside(page, "Bot status details", status, bot1);
       await page.getByRole("button", { name: "Close bot status", exact: true }).click();
       await expect(page.getByText("Bot status details", { exact: true })).toHaveCount(0);
+    });
+
+    await test.step("a trailing button's popover anchors to its own row, not the last pressed", async () => {
+      await page.getByRole("button", { name: "More for Bot 2", exact: true }).click();
+      await expectPopoverBeside(page, "Bot 2 options", bot2, status);
+      await qaScreenshot(page, "phase6-desktop-popover-row");
+      await page.getByRole("button", { name: "Close Bot 2 options", exact: true }).click();
+      await expect(page.getByText("Bot 2 options", { exact: true })).toHaveCount(0);
+    });
+
+    await test.step("a param named like a route segment reaches the screen", async () => {
+      await runCommand(page, "Open bot 3 on server x");
+      await expect(page.getByText("Bot screen: bot-3", { exact: true })).toBeVisible();
+      await expect(page.getByText("serverId param: x", { exact: true })).toBeVisible();
+      await page.reload();
+      await expect(page.getByText("serverId param: x", { exact: true })).toBeVisible();
     });
 
     await test.step("Settings lists the group as one item", async () => {
