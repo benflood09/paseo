@@ -21,6 +21,8 @@ import {
   type PluginClientContext,
   type PluginClientSlashCommandContribution,
   type PluginSidebarContribution,
+  type PluginScreenContribution,
+  type PluginScreenTitle,
   type PluginSidebarItemContribution,
   type PluginSurfaceProps,
   type PluginTimelineRendererContribution,
@@ -78,6 +80,13 @@ function requireId(value: string, label: string): string {
   const id = value.trim();
   if (!CONTRIBUTION_ID.test(id)) throw new Error(`Invalid ${label}: ${value}`);
   return id;
+}
+
+/** A non-empty string, or a function of the screen's params resolved when the header renders. */
+function requireScreenTitle(screenId: string, title: unknown): PluginScreenTitle {
+  if (typeof title === "function") return title as PluginScreenTitle;
+  if (typeof title === "string" && title.trim()) return title.trim();
+  throw new Error(`Screen ${screenId} needs a title: a non-empty string or a function of params`);
 }
 
 export type PluginClientRuntime = Pick<
@@ -195,13 +204,21 @@ export function runPluginClientBundle(
         settingsScreenIds.delete(screenId),
       );
     },
-    addScreen(screenId: string, Component: ComponentType<PluginSurfaceProps>) {
-      const normalizedId = requireId(screenId, "screen id");
+    addScreen(contribution: PluginScreenContribution) {
+      if (typeof contribution !== "object" || contribution === null) {
+        throw new Error("addScreen takes { id, title, Component }");
+      }
+      const normalizedId = requireId(contribution.id, "screen id");
       if (surfaceIds.has(normalizedId)) throw new Error(`Duplicate screen: ${normalizedId}`);
-      if (!isComponentType(Component)) throw new Error(`Screen ${normalizedId} is not a component`);
+      const title = requireScreenTitle(normalizedId, contribution.title);
+      if (!isComponentType(contribution.Component)) {
+        throw new Error(`Screen ${normalizedId} is not a component`);
+      }
       surfaceIds.add(normalizedId);
-      return register(collector.surfaces, { id: normalizedId, Component }, () =>
-        surfaceIds.delete(normalizedId),
+      return register(
+        collector.surfaces,
+        { id: normalizedId, title, Component: contribution.Component },
+        () => surfaceIds.delete(normalizedId),
       );
     },
     addSidebarHeaderItem(contribution: PluginSidebarItemContribution) {
@@ -211,8 +228,9 @@ export function runPluginClientBundle(
       return addSidebarItem("footer", contribution);
     },
     // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
+    // Titled by its id; a legacy item pointing at it lends the header its own title instead.
     addSurface(surfaceId: string, Component: ComponentType<PluginSurfaceProps>) {
-      return pluginContext.addScreen(surfaceId, Component);
+      return pluginContext.addScreen({ id: surfaceId, title: surfaceId, Component });
     },
     // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
     addSidebarItem(contribution: PluginSidebarContribution) {

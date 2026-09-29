@@ -12,7 +12,7 @@ function installed(serverId: string, contributionId = "main"): InstalledPlugin {
     lifetime: new AbortController(),
     queryClient: new QueryClient(),
     settingsScreens: [],
-    surfaces: [{ id: "surface", Component: () => null }],
+    surfaces: [{ id: "surface", title: "Surface", Component: () => null }],
     sidebarItems: {
       header: [{ id: contributionId, title: "Example", Component: () => null }],
       footer: [{ id: "status", title: "Status", Component: () => null }],

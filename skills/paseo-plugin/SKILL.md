@@ -240,14 +240,14 @@ function CounterItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
   return (
     <SidebarRow
       icon="ListPlus"
-      active={currentScreen === "main"}
-      onPress={() => openScreen("main")}
+      active={currentScreen?.screenId === "main"}
+      onPress={() => openScreen({ screenId: "main" })}
     />
   );
 }
 
 export default function contribute(client: PluginClientContext) {
-  client.addScreen("main", Counter);
+  client.addScreen({ id: "main", title: "Counter", Component: Counter });
   client.addSidebarHeaderItem({ id: "main", title: "Counter", Component: CounterItem });
   return () => {};
 }

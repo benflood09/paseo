@@ -228,7 +228,7 @@ import { AgentPanel, contributeClient, Surface } from "./client/main";
 import { inspect } from "./shared/inspect";
 
 export default function contribute(client: PluginClientContext) {
-  client.addScreen("main", Surface);
+  client.addScreen({ id: "main", title: "Review", Component: Surface });
   client.addWorkspacePanel({
     id: "review",
     title: "Review",

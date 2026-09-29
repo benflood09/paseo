@@ -274,7 +274,7 @@ function GreetingItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
 }
 
 export default function contribute(client: PluginClientContext) {
-  client.addScreen("main", Greeting);
+  client.addScreen({ id: "main", title: "Greeting", Component: Greeting });
   client.addSidebarHeaderItem({ id: "main", title: "Greeting", Component: GreetingItem });
   return () => {};
 }
@@ -288,6 +288,10 @@ errors are logged and do not interrupt host teardown.
 
 Paseo owns the route, screen header, Lucide icon validation, close action, theme DTO, layout facts,
 and render error boundary. The contributed component owns the complete body below the header.
+The plugin owns the header's text through the screen's `title` (`resolvePluginScreenTitle` in
+`plugins/surface-contribution.ts`). A legacy `addSidebarItem` pointing at the screen overrides it
+with the item's title and icon, as before screens had titles; the `addSurface` alias titles its
+screen with the id.
 
 Screen params ride in the screen route's query string (`plugins/routes.ts`), not in app state, so
 reload, history, links, and the host switcher keep them without a store. Expo Router merges the

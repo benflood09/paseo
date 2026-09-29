@@ -5,6 +5,7 @@ import {
   currentPluginScreen,
   getPluginSurfaceContributionServerIds,
   parsePluginOpenScreenInput,
+  resolvePluginScreenTitle,
   resolvePluginSurfaceContribution,
 } from "./surface-contribution";
 
@@ -22,7 +23,7 @@ function installation(
     queryClient: new QueryClient(),
     cleanup: () => undefined,
     settingsScreens: [],
-    surfaces: surfaces.map((id) => ({ id, Component: () => null })),
+    surfaces: surfaces.map((id) => ({ id, title: id, Component: () => null })),
     sidebarItems: { header: [], footer: [] },
     legacySidebarItems: sidebarItems.map((item) => ({
       ...item,
@@ -154,6 +155,46 @@ describe("parsePluginOpenScreenInput", () => {
     ).toThrow("botId must be a string");
     expect(() => parsePluginOpenScreenInput(plugin, { screenId: "bot", params: ["2"] })).toThrow(
       "must be an object of strings",
+    );
+  });
+});
+
+describe("resolvePluginScreenTitle", () => {
+  const Component = () => null;
+  const botNames: Record<string, string> = { "bot-1": "Bot 1", "bot-2": "Bot 2" };
+  const bot = {
+    id: "bot",
+    title: (params: Record<string, string>) => botNames[params.botId] ?? "",
+    Component,
+  };
+
+  it("uses a string title as is", () => {
+    expect(resolvePluginScreenTitle({ id: "deploys", title: "Deploys", Component }, null, {})).toBe(
+      "Deploys",
+    );
+  });
+
+  it("derives a function title from the params it is given", () => {
+    expect(resolvePluginScreenTitle(bot, null, { botId: "bot-2" })).toBe("Bot 2");
+    expect(resolvePluginScreenTitle(bot, null, { botId: "bot-1" })).toBe("Bot 1");
+  });
+
+  it("falls back to the screen id when the function returns empty or throws", () => {
+    expect(resolvePluginScreenTitle(bot, null, { botId: "missing" })).toBe("bot");
+    const throwing = {
+      id: "bot",
+      title: () => {
+        throw new Error("no bots loaded");
+      },
+      Component,
+    };
+    expect(resolvePluginScreenTitle(throwing, null, {})).toBe("bot");
+  });
+
+  it("uses the title of a legacy item that points at the screen", () => {
+    const legacy = { id: "entry", title: "Legacy entry", icon: "Server", surface: "main" };
+    expect(resolvePluginScreenTitle({ id: "main", title: "main", Component }, legacy, {})).toBe(
+      "Legacy entry",
     );
   });
 });

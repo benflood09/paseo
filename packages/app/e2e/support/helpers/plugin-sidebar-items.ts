@@ -62,7 +62,7 @@ function Broken() {
 }
 
 export default function contribute(client) {
-  client.addScreen("deploys", DeploysScreen);
+  client.addScreen({ id: "deploys", title: "Deploys", Component: DeploysScreen });
   client.addSidebarHeaderItem({ id: "deploys", title: "Deploys", Component: DeploysItem });
   client.addSidebarHeaderItem({ id: "broken", title: "Broken header", Component: Broken });
   client.addSidebarFooterItem({ id: "sync", title: "Sync", Component: SyncItem });
@@ -94,6 +94,10 @@ function BotScreen({ theme, params }) {
       <Text style={{ color: theme.colors.foregroundMuted }}>{"serverId param: " + (params.serverId ?? "none")}</Text>
     </View>
   );
+}
+
+function botTitle(params) {
+  return BOTS.find((bot) => bot.id === params.botId)?.name ?? "Bot";
 }
 
 const botMenus = {};
@@ -153,7 +157,7 @@ function AlertsItem() {
 
 export default function contribute(client) {
   let removeAlerts = null;
-  client.addScreen("bot", BotScreen);
+  client.addScreen({ id: "bot", title: botTitle, Component: BotScreen });
   client.addSidebarHeaderItem({ id: "bots", title: "Bots", Component: BotsItem });
   client.addCommandCenterItem({ id: "open-bot-3", title: "Open bot 3 on server x", icon: "Bot", context: "global", onSelect: (ctx) => ctx.openScreen({ screenId: "bot", params: { botId: "bot-3", serverId: "x" } }) });
   client.addCommandCenterItem({ id: "add-alerts", title: "Add bot alerts", icon: "Bell", context: "global", onSelect: () => {

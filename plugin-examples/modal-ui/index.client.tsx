@@ -11,7 +11,7 @@ function ModalExamplesItem({ currentScreen, openScreen }: PluginSidebarItemProps
 }
 
 export default function contribute(plugin: PluginClientContext) {
-  plugin.addScreen("main", ModalExamples);
+  plugin.addScreen({ id: "main", title: "Modal examples", Component: ModalExamples });
   plugin.addSidebarHeaderItem({
     id: "main",
     title: "Modal examples",

@@ -132,7 +132,7 @@ interface PluginClientContextAliases {
 
 export interface PluginClientContext extends PluginCommandCapabilities, PluginClientContextAliases {
   addSettingsScreen(contribution: PluginSettingsScreenContribution): PluginCleanup;
-  addScreen(id: string, Component: ComponentType<PluginScreenProps>): PluginCleanup;
+  addScreen(contribution: PluginScreenContribution): PluginCleanup;
   addSidebarHeaderItem(contribution: PluginSidebarItemContribution): PluginCleanup;
   addSidebarFooterItem(contribution: PluginSidebarItemContribution): PluginCleanup;
   addWorkspacePanel(contribution: PluginWorkspacePanelContribution): PluginCleanup;
@@ -168,6 +168,15 @@ export interface PluginSettingsScreenContribution {
   title: string;
   icon: string;
   Component: ComponentType<PluginSurfaceProps>;
+}
+
+/** The screen header's title: fixed, or derived from the params the screen was opened with. */
+export type PluginScreenTitle = string | ((params: PluginScreenParams) => string);
+
+export interface PluginScreenContribution {
+  id: string;
+  title: PluginScreenTitle;
+  Component: ComponentType<PluginScreenProps>;
 }
 
 export interface PluginSurfaceContribution {

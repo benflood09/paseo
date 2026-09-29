@@ -64,7 +64,7 @@ function plugin(onAgentSelect: AgentCommandItem["onSelect"]): InstalledPlugin {
     queryClient: new QueryClient(),
     cleanup: () => {},
     settingsScreens: [],
-    surfaces: [{ id: "main", Component: () => null }],
+    surfaces: [{ id: "main", title: "Main", Component: () => null }],
     sidebarItems: { header: [], footer: [] },
     legacySidebarItems: [],
     workspacePanels: [

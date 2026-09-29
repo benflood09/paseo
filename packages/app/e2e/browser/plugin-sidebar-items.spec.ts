@@ -64,11 +64,18 @@ async function boxOf(locator: Locator) {
   return result!;
 }
 
+/** The open screen's header title; a pushed screen keeps the one below it mounted. */
+function screenTitle(page: Page): Locator {
+  return page.locator('[data-testid="plugin-surface-title"]:visible').last();
+}
+
 async function expectBotScreen(page: Page, botId: string) {
   await expect(page).toHaveURL(
     new RegExp(`/plugin/${BOTS_PLUGIN_ID}/surface/bot\\?param\\.botId=${botId}$`),
   );
   await expect(page.getByText(`Bot screen: ${botId}`, { exact: true })).toBeVisible();
+  // The plugin titles the screen from its params: the bot's name.
+  await expect(screenTitle(page)).toHaveText(botId === "bot-1" ? "Bot 1" : "Bot 2");
   await expectRowActive(botRow(page, "bot-1"), botId === "bot-1");
   await expectRowActive(botRow(page, "bot-2"), botId === "bot-2");
   await expectRowActive(botRow(page, "status"), false);
@@ -131,6 +138,7 @@ test.describe("Plugin sidebar items", () => {
       await row.click();
       await expect(page).toHaveURL(new RegExp(`/plugin/${SHOWCASE_PLUGIN_ID}/surface/deploys`));
       await expect(page.getByText("Deploys screen body", { exact: true })).toBeVisible();
+      await expect(screenTitle(page)).toHaveText("Deploys");
       await expectRowActive(row, true);
       await qaScreenshot(page, "phase2-desktop-sidebar-screen");
       await closeScreen(page);
@@ -226,7 +234,7 @@ test.describe("Plugin sidebar items", () => {
       await entry.click();
       await expect(page.getByText("Legacy screen body", { exact: true })).toBeVisible();
       await expect(page.getByTestId("plugin-surface-close")).toBeVisible();
-      await expect(page.getByText("Legacy entry", { exact: true }).last()).toBeVisible();
+      await expect(screenTitle(page)).toHaveText("Legacy entry");
       await expectRowActive(entry, true);
       await closeScreen(page);
     });
@@ -328,6 +336,8 @@ test.describe("Plugin sidebar items", () => {
       await runCommand(page, "Open bot 3 on server x");
       await expect(page.getByText("Bot screen: bot-3", { exact: true })).toBeVisible();
       await expect(page.getByText("serverId param: x", { exact: true })).toBeVisible();
+      // No bot named bot-3, so the title function returns its own fallback.
+      await expect(screenTitle(page)).toHaveText("Bot");
       await page.reload();
       await expect(page.getByText("serverId param: x", { exact: true })).toBeVisible();
     });

@@ -9,7 +9,7 @@ function HostsItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
 }
 
 export default function contribute(client: PluginClientContext) {
-  client.addScreen("main", Hosts);
+  client.addScreen({ id: "main", title: "Host agents", Component: Hosts });
   client.addSidebarHeaderItem({ id: "hosts", title: "Host agents", Component: HostsItem });
   return () => {};
 }

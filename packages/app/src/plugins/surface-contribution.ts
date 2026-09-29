@@ -1,4 +1,4 @@
-import type { PluginScreenLocation } from "@getpaseo/plugin/client";
+import type { PluginScreenLocation, PluginScreenParams } from "@getpaseo/plugin/client";
 import {
   parsePluginScreenParams,
   parsePluginSurfaceRoute,
@@ -33,6 +33,27 @@ export function resolvePluginSurfaceContribution(
     ? (plugin.surfaces.find((contribution) => contribution.id === surfaceId) ?? null)
     : null;
   return { sidebarItem, surface };
+}
+
+/**
+ * The screen header's title. A legacy `addSidebarItem` pointing at the screen lends its title, as
+ * before screens had one. A title function that throws or returns an empty string falls back to the
+ * screen id, so a bad title never takes the screen down.
+ */
+export function resolvePluginScreenTitle(
+  screen: InstalledPlugin["surfaces"][number],
+  legacySidebarItem: InstalledPlugin["legacySidebarItems"][number] | null,
+  params: PluginScreenParams,
+): string {
+  if (legacySidebarItem) return legacySidebarItem.title;
+  if (typeof screen.title === "string") return screen.title;
+  try {
+    const title = screen.title(params);
+    if (typeof title === "string" && title.trim()) return title.trim();
+  } catch (error) {
+    console.warn(`[Plugins] Screen ${screen.id} title failed`, error);
+  }
+  return screen.id;
 }
 
 /**

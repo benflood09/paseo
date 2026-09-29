@@ -25,6 +25,7 @@ import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { PluginRuntimeBoundary } from "./runtime-boundary";
 import {
   getPluginSurfaceContributionServerIds,
+  resolvePluginScreenTitle,
   resolvePluginSurfaceContribution,
   type PluginSurfaceContributionIdentity,
 } from "./surface-contribution";
@@ -153,7 +154,13 @@ export function PluginSurfaceScreen() {
       identity ? getPluginSurfaceContributionServerIds(installations, pluginId, identity) : [],
     [identity, installations, pluginId],
   );
-  const title = sidebarItem?.title ?? surface?.id ?? (pluginId || "Plugin");
+  const title = useMemo(
+    () =>
+      surface
+        ? resolvePluginScreenTitle(surface, sidebarItem, params)
+        : (sidebarItem?.title ?? (pluginId || "Plugin")),
+    [params, pluginId, sidebarItem, surface],
+  );
   const Icon = sidebarItem ? resolvePluginIcon(sidebarItem.icon) : null;
   const close = useCallback(() => {
     if (router.canGoBack()) router.back();
@@ -169,7 +176,7 @@ export function PluginSurfaceScreen() {
             <ThemedPluginHeaderIcon Icon={Icon} uniProps={mutedColorMapping} />
           </HeaderIconBadge>
         ) : null}
-        <ScreenTitle>{title}</ScreenTitle>
+        <ScreenTitle testID="plugin-surface-title">{title}</ScreenTitle>
       </>
     ),
     [Icon, title],

@@ -11,7 +11,7 @@ import type {
   PluginComposerPillContribution,
   PluginSidebarContribution,
   PluginSidebarItemContribution,
-  PluginSurfaceContribution,
+  PluginScreenContribution,
   PluginSettingsScreenContribution,
   PluginTimelineRendererContribution,
   PluginTimelineTransformerContribution,
@@ -28,7 +28,7 @@ export type EvaluatedPluginWorkspacePanelContribution = PluginWorkspacePanelCont
 export interface EvaluatedPlugin {
   id: string;
   cleanup: PluginCleanup;
-  surfaces: PluginSurfaceContribution[];
+  surfaces: PluginScreenContribution[];
   settingsScreens: PluginSettingsScreenContribution[];
   sidebarItems: Record<PluginSidebarSection, PluginSidebarItemContribution[]>;
   // COMPAT(pluginSidebarAliases): added in v0.11.0, remove after 2027-03-29
@@ -58,7 +58,7 @@ export type {
   PluginComposerPillContribution,
   PluginSidebarContribution,
   PluginSidebarItemContribution,
-  PluginSurfaceContribution,
+  PluginScreenContribution,
   PluginSettingsScreenContribution,
   PluginThemeContribution,
   PluginTimelineRendererContribution,

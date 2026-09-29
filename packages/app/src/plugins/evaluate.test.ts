@@ -73,7 +73,7 @@ describe("evaluatePluginClientBundle", () => {
         function Component() { return null; }
         const schema = { safeParse(value) { return { success: true, data: value }; } };
         globalThis.__pluginRemovals = [
-          plugin.addScreen("main", Component),
+          plugin.addScreen({ id: "main", title: "Main", Component }),
           plugin.addSettingsScreen({ id: "display", title: "Display", icon: "Settings", Component }),
           plugin.addSidebarHeaderItem({ id: "main", title: "Main", Component }),
           plugin.addSidebarFooterItem({ id: "status", title: "Status", Component }),
@@ -190,14 +190,17 @@ describe("evaluatePluginClientBundle", () => {
       bundle(`
         function Screen() { return null; }
         const Item = require("react").memo(function Item() { return null; });
-        plugin.addScreen("main", Screen);
+        plugin.addScreen({ id: "main", title: " Main ", Component: Screen });
+        plugin.addScreen({ id: "bot", title: (params) => params.botId, Component: Screen });
         plugin.addSidebarHeaderItem({ id: "main", title: " Example ", Component: Item });
         plugin.addSidebarFooterItem({ id: "main", title: "Status", Component: Item });
       `),
     );
 
     expect(plugin.id).toBe("example");
-    expect(plugin.surfaces.map((surface) => surface.id)).toEqual(["main"]);
+    expect(plugin.surfaces.map((surface) => surface.id)).toEqual(["main", "bot"]);
+    expect(plugin.surfaces[0]?.title).toBe("Main");
+    expect(plugin.surfaces[1]?.title).toBeTypeOf("function");
     expect(plugin.sidebarItems.header.map(({ id, title }) => ({ id, title }))).toEqual([
       { id: "main", title: "Example" },
     ]);
@@ -205,6 +208,27 @@ describe("evaluatePluginClientBundle", () => {
       { id: "main", title: "Status" },
     ]);
     expect(plugin.legacySidebarItems).toEqual([]);
+  });
+
+  it.each([
+    [`plugin.addScreen("main", Screen);`, "addScreen takes { id, title, Component }"],
+    [`plugin.addScreen({ id: "main", Component: Screen });`, "Screen main needs a title"],
+    [
+      `plugin.addScreen({ id: "main", title: " ", Component: Screen });`,
+      "Screen main needs a title",
+    ],
+    [
+      `plugin.addScreen({ id: "main", title: 42, Component: Screen });`,
+      "Screen main needs a title",
+    ],
+    [
+      `plugin.addScreen({ id: "main", title: "Main", Component: "Main" });`,
+      "Screen main is not a component",
+    ],
+  ])("rejects a malformed screen: %s", (call, message) => {
+    expect(() =>
+      evaluatePluginClientBundle("example", bundle(`function Screen() { return null; } ${call}`)),
+    ).toThrow(message);
   });
 
   it("rejects duplicate and malformed sidebar items within a section", () => {
@@ -244,7 +268,9 @@ describe("evaluatePluginClientBundle", () => {
       `),
     );
 
-    expect(plugin.surfaces.map((surface) => surface.id)).toEqual(["main"]);
+    expect(plugin.surfaces.map(({ id, title }) => ({ id, title }))).toEqual([
+      { id: "main", title: "main" },
+    ]);
     expect(plugin.sidebarItems.header.map(({ id, title }) => ({ id, title }))).toEqual([
       { id: "entry", title: "Example" },
     ]);
@@ -259,7 +285,7 @@ describe("evaluatePluginClientBundle", () => {
     const plugin = evaluatePluginClientBundle(
       "example",
       bundle(`
-        plugin.addScreen("main", function Screen() { return null; });
+        plugin.addScreen({ id: "main", title: "Main", Component: function Screen() { return null; } });
         const remove = plugin.addSidebarItem({ id: "entry", title: "Example", icon: "Blocks", surface: "main" });
         remove();
         plugin.addSidebarHeaderItem({ id: "entry", title: "Replacement", Component() { return null; } });

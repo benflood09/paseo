@@ -35,7 +35,7 @@ function GreetingItem({ currentScreen, openScreen }: PluginSidebarItemProps) {
 }
 
 export default function contribute(client: PluginClientContext) {
-  client.addScreen("greeting", GreetingScreen);
+  client.addScreen({ id: "greeting", title: "Greeting", Component: GreetingScreen });
   client.addSidebarHeaderItem({ id: "greeting", title: "Greeting", Component: GreetingItem });
   return () => {};
 }
