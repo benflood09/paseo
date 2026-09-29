@@ -440,11 +440,12 @@ one section's order from built-ins, plugin groups, and the section's preference
 - `SidebarRow.trailing` sits in a second `Pressable` beside the row's button, since web cannot nest
   buttons. Its `onPress` is the row's, so a press on non-interactive trailing content presses the
   row; a button inside it wins its own press because only the innermost pressable responds.
-- Sidebar item rows share one runtime per installation (`getSharedPluginSurfaceRuntime`), created
-  during render, so they have content on their first frame without a client per row. Everything
-  shorter-lived owns a runtime while mounted and disposes it on unmount: popover content, header
-  buttons, composer pills, screens, panels, and timeline rows. A popover on the shared runtime
-  would keep its event subscriptions open after it closes.
+- Every plugin surface owns a runtime while mounted and releases what it subscribed to when it
+  unmounts. A sidebar item creates its runtime during render (`usePluginRenderedRuntime`), so its
+  first frame has content; screens, panels, timeline rows, popovers, header buttons, and composer
+  pills create theirs in an effect. Either way it is a scope over the host's existing client, not a
+  new connection. The rendered runtime closes a microtask after unmount, so StrictMode's remount
+  in the same commit keeps the scope its children already subscribed through.
 - A new-API item renders from the current route's host, else the host remembered under
   `pluginScreensHostKey(pluginId)`, which the screen's host switcher and the item's `openScreen`
   set. One key per plugin: switching host on any of its screens moves all its items.

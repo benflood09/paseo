@@ -17,7 +17,11 @@ import {
   runCommand,
   visibleTestId,
 } from "../support/helpers/plugin-sidebar-items";
-import { leaveSettings, openSidebarNavSettings } from "../support/helpers/sidebar-nav-settings";
+import {
+  leaveSettings,
+  openSidebarNavSettings,
+  setFooterItemVisible,
+} from "../support/helpers/sidebar-nav-settings";
 import { seedWorkspace } from "../support/helpers/seed-client";
 import { getServerId } from "../support/helpers/server-id";
 
@@ -89,6 +93,38 @@ async function expectPopoverBeside(page: Page, text: string, row: Locator, elsew
   expect(popover.x).toBeGreaterThanOrEqual(rowBox.x + rowBox.width);
   expect(Math.abs(popover.y - rowBox.y)).toBeLessThan(40);
   expect(Math.abs(popover.y - otherBox.y)).toBeGreaterThan(20);
+}
+
+/** Subscription ids the daemon confirms released, collected from the page's websocket. */
+function trackReleasedSubscriptions(page: Page): Set<string> {
+  const released = new Set<string>();
+  page.on("websocket", (socket) =>
+    socket.on("framereceived", ({ payload }) => collectRelease(released, payload)),
+  );
+  return released;
+}
+
+function collectRelease(released: Set<string>, payload: string | Buffer) {
+  if (typeof payload !== "string") return;
+  const frame = JSON.parse(payload);
+  if (frame.message?.type === "subscription.release.response")
+    released.add(frame.message.payload.subscriptionId);
+}
+
+async function expectReleased(released: Set<string>, subscriptionId: string) {
+  await expect.poll(() => released.has(subscriptionId)).toBe(true);
+}
+
+function readAlertsObservation(page: Page): Promise<string | null> {
+  return page.evaluate(
+    () => (globalThis as { __botAlertsObservation?: string }).__botAlertsObservation ?? null,
+  );
+}
+
+/** The id of the observation the Bot alerts item opened after `previous`. */
+async function nextAlertsObservation(page: Page, previous: string | null): Promise<string> {
+  await expect.poll(() => readAlertsObservation(page)).not.toBe(previous);
+  return (await readAlertsObservation(page))!;
 }
 
 function sidebarFooter(page: Page): Locator {
@@ -407,5 +443,36 @@ test.describe("Plugin sidebar items", () => {
 
     await runCommand(page, "Remove bot alerts");
     await expect(alerts).toHaveCount(0);
+  });
+
+  test("a sidebar item's observations close when it is hidden or removed", async ({ page }) => {
+    test.setTimeout(120_000);
+    const released = trackReleasedSubscriptions(page);
+    const alerts = footerItem(page, BOTS_PLUGIN_ID, "alerts");
+    await page.setViewportSize(WIDE);
+    await gotoWorkspace(page, workspaceId);
+    await expect(botRow(page, "bot-1")).toBeVisible({ timeout: 30_000 });
+
+    await runCommand(page, "Add bot alerts");
+    await expect(alerts).toBeVisible();
+    const first = await nextAlertsObservation(page, null);
+    expect(released.has(first)).toBe(false);
+
+    await test.step("hiding the item in Settings closes its observation", async () => {
+      await openSidebarNavSettings(page);
+      await setFooterItemVisible(page, `plugin:${BOTS_PLUGIN_ID}:alerts`, false);
+      await expectReleased(released, first);
+      await setFooterItemVisible(page, `plugin:${BOTS_PLUGIN_ID}:alerts`, true);
+      await leaveSettings(page);
+    });
+
+    await test.step("removing the item through its remover closes its observation", async () => {
+      await expect(alerts).toBeVisible();
+      const second = await nextAlertsObservation(page, first);
+      expect(released.has(second)).toBe(false);
+      await runCommand(page, "Remove bot alerts");
+      await expect(alerts).toHaveCount(0);
+      await expectReleased(released, second);
+    });
   });
 });

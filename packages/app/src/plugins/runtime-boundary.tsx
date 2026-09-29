@@ -3,7 +3,7 @@ import { PaseoApiProvider, PluginRpcProvider } from "@getpaseo/plugin/client/hos
 import React, { type ReactNode } from "react";
 import type { InstalledPlugin } from "./types";
 import {
-  getSharedPluginSurfaceRuntime,
+  usePluginRenderedRuntime,
   usePluginSurfaceRuntime,
   type PluginSurfaceRuntime,
 } from "./surface-runtime";
@@ -25,13 +25,13 @@ export function PluginRuntimeBoundary({ plugin, client, children }: PluginRuntim
   );
 }
 
-/** Sidebar item rows: the installation's shared runtime, so they render on their first frame. */
-export function PluginSharedRuntimeBoundary({
+/** A sidebar item: its runtime exists on its first frame and closes when the item unmounts. */
+export function PluginRenderedRuntimeBoundary({
   plugin,
   client,
   children,
 }: PluginRuntimeBoundaryProps) {
-  const runtime = getSharedPluginSurfaceRuntime(client, plugin);
+  const runtime = usePluginRenderedRuntime(client, plugin);
   return (
     <PluginRuntimeProviders plugin={plugin} runtime={runtime}>
       {children}

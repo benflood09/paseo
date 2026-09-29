@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { InstalledPlugin } from "./types";
 import { createPaseoApi, type PaseoApi } from "@getpaseo/client";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
@@ -43,23 +43,55 @@ export function usePluginSurfaceRuntime(
   return mounted?.client === client && mounted.plugin === plugin ? mounted.runtime : null;
 }
 
-const sharedRuntimes = new WeakMap<
-  InstalledPlugin,
-  { client: DaemonClient; runtime: PluginSurfaceRuntime | null }
->();
-
 /**
- * The installation's runtime for sidebar item rows. Created on first use during render, so a row's
- * first frame already has content, and shared by every row of the installation. It closes with the
- * installation's lifetime, so anything shorter-lived, such as a popover, owns its own runtime.
+ * A runtime created during render, for a surface that must have content on its first frame, such
+ * as a sidebar item. It is a scope over the host's client, not a new connection: it owns what the
+ * surface subscribes to while mounted and releases it when the surface unmounts, moves to another
+ * host, or its installation stops.
  */
-export function getSharedPluginSurfaceRuntime(
+export function usePluginRenderedRuntime(
   client: DaemonClient,
   plugin: InstalledPlugin,
 ): PluginSurfaceRuntime | null {
-  const cached = sharedRuntimes.get(plugin);
-  if (cached?.client === client) return cached.runtime;
-  const runtime = createPluginSurfaceRuntime(client, plugin);
-  sharedRuntimes.set(plugin, { client, runtime });
-  return runtime;
+  const scope = useMemo(() => createPluginSurfaceScope(client, plugin), [client, plugin]);
+  useEffect(() => scope?.retain(), [scope]);
+  return scope?.runtime ?? null;
+}
+
+interface PluginSurfaceScope {
+  runtime: PluginSurfaceRuntime;
+  /** Keeps the scope open while mounted; the returned release closes it once nothing retains it. */
+  retain(): () => void;
+}
+
+/**
+ * A render may be discarded without an effect, so the scope holds nothing outside itself until
+ * retained. Release closes it a microtask later, so StrictMode's unmount and remount in one
+ * commit keeps the scope its children already subscribed through.
+ */
+export function createPluginSurfaceScope(
+  client: DaemonClient,
+  plugin: InstalledPlugin,
+): PluginSurfaceScope | null {
+  if (plugin.lifetime.signal.aborted) return null;
+  const lifetime = new AbortController();
+  const runtime = createPluginSurfaceRuntime(client, { id: plugin.id, lifetime });
+  if (!runtime) return null;
+  const close = () => lifetime.abort();
+  let retained = 0;
+  return {
+    runtime,
+    retain() {
+      retained += 1;
+      plugin.lifetime.signal.addEventListener("abort", close, { once: true });
+      return () => {
+        retained -= 1;
+        queueMicrotask(() => {
+          if (retained > 0) return;
+          plugin.lifetime.signal.removeEventListener("abort", close);
+          close();
+        });
+      };
+    },
+  };
 }

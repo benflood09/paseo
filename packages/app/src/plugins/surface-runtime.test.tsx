@@ -1,13 +1,18 @@
+/**
+ * @vitest-environment jsdom
+ */
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { PaseoApi } from "@getpaseo/client";
 import { PaseoApiProvider } from "@getpaseo/plugin/client/host";
 import { usePaseo } from "@getpaseo/plugin/client";
-import React from "react";
+import { act } from "@testing-library/react";
+import React, { StrictMode, useEffect } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { QueryClient } from "@tanstack/react-query";
-import { PluginSharedRuntimeBoundary } from "./runtime-boundary";
-import { createPluginSurfaceRuntime, getSharedPluginSurfaceRuntime } from "./surface-runtime";
+import { PluginRenderedRuntimeBoundary } from "./runtime-boundary";
+import { createPluginSurfaceRuntime } from "./surface-runtime";
 import type { InstalledPlugin } from "./types";
 
 function clientWithWorkspace(id: string) {
@@ -114,7 +119,11 @@ describe("plugin surface host runtime", () => {
   });
 });
 
-describe("shared plugin runtime", () => {
+vi.hoisted(() => {
+  (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+});
+
+describe("sidebar item runtime", () => {
   function installation(): InstalledPlugin {
     return {
       id: "chrome-plugin",
@@ -137,38 +146,134 @@ describe("shared plugin runtime", () => {
     };
   }
 
+  /** A host client that records which event observations are open. */
+  function observingClient() {
+    const open = new Set<string>();
+    let next = 0;
+    const observeEvents = vi.fn(() => {
+      const id = `observation-${++next}`;
+      open.add(id);
+      return {
+        id,
+        ready: Promise.resolve({ subscriptionId: id }),
+        subscribe: () => () => undefined,
+        release: async () => {
+          open.delete(id);
+        },
+      };
+    });
+    return { client: { observeEvents } as unknown as DaemonClient, open, observeEvents };
+  }
+
+  /** Opens an observation when mounted and, like a careless plugin, never releases it. */
+  function Observer({ name, opened }: { name: string; opened: Map<string, string[]> }) {
+    const paseo = usePaseo();
+    useEffect(() => {
+      const observation = paseo.observeEvents(["project.update"]) as unknown as { id: string };
+      opened.set(name, [...(opened.get(name) ?? []), observation.id]);
+    }, [name, opened, paseo]);
+    return <span>{name}</span>;
+  }
+
+  function Items({
+    names,
+    plugin,
+    client,
+    opened,
+  }: {
+    names: string[];
+    plugin: InstalledPlugin;
+    client: DaemonClient;
+    opened: Map<string, string[]>;
+  }) {
+    return names.map((name) => (
+      <PluginRenderedRuntimeBoundary key={name} plugin={plugin} client={client}>
+        <Observer name={name} opened={opened} />
+      </PluginRenderedRuntimeBoundary>
+    ));
+  }
+
+  async function flush() {
+    await act(async () => {
+      await Promise.resolve();
+    });
+  }
+
   it("renders a sidebar item's content on its first frame", () => {
-    const { client } = clientWithWorkspace("workspace-a");
+    const { client } = observingClient();
     function Item() {
       usePaseo();
       return <span>Deploys</span>;
     }
 
     const markup = renderToStaticMarkup(
-      <PluginSharedRuntimeBoundary plugin={installation()} client={client}>
+      <PluginRenderedRuntimeBoundary plugin={installation()} client={client}>
         <Item />
-      </PluginSharedRuntimeBoundary>,
+      </PluginRenderedRuntimeBoundary>,
     );
 
     expect(markup).toBe("<span>Deploys</span>");
   });
 
-  it("gives every item of an installation one runtime, and a new one for a new host client", () => {
+  it("releases an item's observations when it unmounts, while its sibling on the same client keeps its own", async () => {
+    const { client, open } = observingClient();
     const plugin = installation();
-    const hostA = clientWithWorkspace("workspace-a").client;
-    const hostB = clientWithWorkspace("workspace-b").client;
-    const first = getSharedPluginSurfaceRuntime(hostA, plugin);
+    const opened = new Map<string, string[]>();
+    const root = createRoot(document.createElement("div"));
+    const render = (names: string[]) =>
+      act(() =>
+        root.render(
+          <StrictMode>
+            <Items names={names} plugin={plugin} client={client} opened={opened} />
+          </StrictMode>,
+        ),
+      );
 
-    expect(first).not.toBeNull();
-    expect(getSharedPluginSurfaceRuntime(hostA, plugin)).toBe(first);
-    expect(getSharedPluginSurfaceRuntime(hostA, installation())).not.toBe(first);
-    expect(getSharedPluginSurfaceRuntime(hostB, plugin)).not.toBe(first);
+    // StrictMode mounts, unmounts and remounts each item; the remount must not get a closed scope.
+    render(["alerts", "deploys"]);
+    await flush();
+    expect(opened.get("alerts")).toHaveLength(2);
+    expect([...open].sort()).toEqual([...opened.get("alerts")!, ...opened.get("deploys")!].sort());
+
+    render(["deploys"]);
+    await flush();
+    expect([...open]).toEqual(opened.get("deploys"));
+
+    act(() => root.unmount());
+    await flush();
+    expect(open.size).toBe(0);
+  });
+
+  it("releases an item's observations when its installation stops", async () => {
+    const { client, open } = observingClient();
+    const plugin = installation();
+    const opened = new Map<string, string[]>();
+    const root = createRoot(document.createElement("div"));
+    act(() => {
+      root.render(
+        <PluginRenderedRuntimeBoundary plugin={plugin} client={client}>
+          <Observer name="alerts" opened={opened} />
+        </PluginRenderedRuntimeBoundary>,
+      );
+    });
+    expect(open.size).toBe(1);
+
+    plugin.lifetime.abort();
+    await flush();
+    expect(open.size).toBe(0);
+    act(() => root.unmount());
   });
 
   it("has no runtime once the installation is gone", () => {
     const plugin = installation();
     plugin.lifetime.abort();
 
-    expect(getSharedPluginSurfaceRuntime(clientWithWorkspace("a").client, plugin)).toBeNull();
+    const markup = renderToStaticMarkup(
+      <PluginRenderedRuntimeBoundary plugin={plugin} client={observingClient().client}>
+        <span>Deploys</span>
+      </PluginRenderedRuntimeBoundary>,
+    );
+
+    expect(markup).toBe("");
   });
 });

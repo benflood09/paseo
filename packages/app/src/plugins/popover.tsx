@@ -6,7 +6,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { MenuSurface, type MenuSurfaceProps } from "@/components/ui/menu";
 import { ToastApiProvider, type useToast } from "@/contexts/toast-context";
 import type { createPluginClientStateSource } from "./client-state/source";
-import { PluginRuntimeBoundary, PluginSharedRuntimeBoundary } from "./runtime-boundary";
+import { PluginRuntimeBoundary, PluginRenderedRuntimeBoundary } from "./runtime-boundary";
 import type { InstalledPlugin } from "./types";
 
 export interface PluginEnvironment {
@@ -41,9 +41,8 @@ export function PluginEnvironmentProvider({
 }
 
 /**
- * The providers for a sidebar item's rows: the installation's shared runtime, so a row has content
- * on its first frame and rows do not each open a client. What a row opens lives as long as the
- * installation; popovers it opens use `PluginEnvironmentProvider`.
+ * The providers for a sidebar item: its runtime exists on the item's first frame, and what the item
+ * subscribes to is released when it unmounts. Popovers it opens use `PluginEnvironmentProvider`.
  */
 export function PluginSidebarItemEnvironmentProvider({
   environment,
@@ -51,9 +50,9 @@ export function PluginSidebarItemEnvironmentProvider({
 }: PluginEnvironmentProviderProps) {
   return (
     <ToastApiProvider api={environment.toast}>
-      <PluginSharedRuntimeBoundary plugin={environment.installation} client={environment.client}>
+      <PluginRenderedRuntimeBoundary plugin={environment.installation} client={environment.client}>
         <PluginClientStateProvider source={environment.state}>{children}</PluginClientStateProvider>
-      </PluginSharedRuntimeBoundary>
+      </PluginRenderedRuntimeBoundary>
     </ToastApiProvider>
   );
 }
