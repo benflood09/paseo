@@ -905,22 +905,6 @@ function addDerivedProviders(
   }
 }
 
-function warnUnknownProviderOverrides({
-  logger,
-  providerOverrides,
-  resolvedProviders,
-}: {
-  logger: Logger;
-  providerOverrides: Record<string, ProviderOverride>;
-  resolvedProviders: Map<string, ResolvedProvider>;
-}): void {
-  for (const [provider, override] of Object.entries(providerOverrides)) {
-    if (!override.extends && !resolvedProviders.has(provider)) {
-      logger.warn({ provider }, "Provider override matches no registered provider");
-    }
-  }
-}
-
 export function buildProviderRegistry(
   logger: Logger,
   options?: BuildProviderRegistryOptions,
@@ -965,8 +949,6 @@ export function buildProviderRegistry(
     managedProcesses: options?.managedProcesses,
     openCodeBridge: options?.openCodeBridge,
   });
-
-  warnUnknownProviderOverrides({ logger, providerOverrides, resolvedProviders });
 
   return Object.fromEntries(
     [...resolvedProviders.entries()].map(([provider, resolved]) => [
