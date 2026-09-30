@@ -13,20 +13,37 @@ export function normalizeWorkspaceTabTarget(
       return null;
     }
     const setup = normalizeWorkspaceDraftTabSetup(value.setup);
-    return setup ? { kind: "draft", draftId, setup } : { kind: "draft", draftId };
+    return {
+      kind: "draft",
+      draftId,
+      ...targetWorkspaceId(value),
+      ...(setup ? { setup } : {}),
+    };
   }
   if (value.kind === "new_tab") {
     return { kind: "new_tab" };
   }
   if (value.kind === "agent") {
     const agentId = trimNonEmpty(value.agentId);
-    return agentId ? { kind: "agent", agentId } : null;
+    return agentId
+      ? {
+          kind: "agent",
+          agentId,
+          ...targetWorkspaceId(value),
+          ...(value.allowArchived === true ? { allowArchived: true } : {}),
+        }
+      : null;
   }
   if (value.kind === "provider_subagent") {
     const parentAgentId = trimNonEmpty(value.parentAgentId);
     const subagentId = trimNonEmpty(value.subagentId);
     return parentAgentId && subagentId
-      ? { kind: "provider_subagent", parentAgentId, subagentId }
+      ? {
+          kind: "provider_subagent",
+          parentAgentId,
+          subagentId,
+          ...targetWorkspaceId(value),
+        }
       : null;
   }
   if (value.kind === "file") {
@@ -45,27 +62,34 @@ function normalizeSimpleWorkspaceTabTarget(value: WorkspaceTabTarget): Workspace
   switch (value.kind) {
     case "agent": {
       const agentId = trimNonEmpty(value.agentId);
-      return agentId ? { kind: "agent", agentId } : null;
+      return agentId
+        ? {
+            kind: "agent",
+            agentId,
+            ...targetWorkspaceId(value),
+            ...(value.allowArchived === true ? { allowArchived: true } : {}),
+          }
+        : null;
     }
     case "terminal": {
       const terminalId = trimNonEmpty(value.terminalId);
-      return terminalId ? { kind: "terminal", terminalId } : null;
+      return terminalId ? { kind: "terminal", terminalId, ...targetWorkspaceId(value) } : null;
     }
     case "browser": {
       const browserId = trimNonEmpty(value.browserId);
-      return browserId ? { kind: "browser", browserId } : null;
+      return browserId ? { kind: "browser", browserId, ...targetWorkspaceId(value) } : null;
     }
     case "changes_tree":
     case "files":
     case "pull_request":
-      return { kind: value.kind };
+      return { kind: value.kind, ...targetWorkspaceId(value) };
     case "setup": {
       const workspaceId = trimNonEmpty(value.workspaceId);
       return workspaceId ? { kind: "setup", workspaceId } : null;
     }
     case "commit_diff": {
       const sha = trimNonEmpty(value.sha);
-      return sha ? { kind: "commit_diff", sha } : null;
+      return sha ? { kind: "commit_diff", sha, ...targetWorkspaceId(value) } : null;
     }
     default:
       return null;
@@ -107,7 +131,7 @@ export function workspaceTabTargetsEqual(
     return left.draftId === right.draftId && workspaceDraftTabSetupsEqual(left.setup, right.setup);
   }
   if (left.kind === "agent" && right.kind === "agent") {
-    return left.agentId === right.agentId;
+    return left.agentId === right.agentId && left.allowArchived === right.allowArchived;
   }
   if (left.kind === "provider_subagent" && right.kind === "provider_subagent") {
     return left.parentAgentId === right.parentAgentId && left.subagentId === right.subagentId;
@@ -116,15 +140,22 @@ export function workspaceTabTargetsEqual(
     return left.terminalId === right.terminalId;
   }
   if (left.kind === "plugin" && right.kind === "plugin") {
-    return (
-      left.pluginId === right.pluginId &&
-      left.panelId === right.panelId &&
-      left.context === right.context &&
-      (left.context === "workspace" ||
-        (right.context === "agent" && left.agentId === right.agentId))
-    );
+    return pluginWorkspaceTabTargetsEqual(left, right);
   }
   return secondaryWorkspaceTabTargetsEqual(left, right);
+}
+
+function pluginWorkspaceTabTargetsEqual(
+  left: Extract<WorkspaceTabTarget, { kind: "plugin" }>,
+  right: Extract<WorkspaceTabTarget, { kind: "plugin" }>,
+): boolean {
+  return (
+    targetWorkspaceIdsEqual(left, right) &&
+    left.pluginId === right.pluginId &&
+    left.panelId === right.panelId &&
+    left.context === right.context &&
+    (left.context === "workspace" || (right.context === "agent" && left.agentId === right.agentId))
+  );
 }
 
 function secondaryWorkspaceTabTargetsEqual(
@@ -135,27 +166,38 @@ function secondaryWorkspaceTabTargetsEqual(
     return left.browserId === right.browserId;
   }
   if (left.kind === "file" && right.kind === "file") {
-    return workspaceFileLocationsEqual(left, right);
+    return workspaceFileLocationsEqual(left, right) && targetWorkspaceIdsEqual(left, right);
   }
   if (left.kind === "working_diff" && right.kind === "working_diff") {
-    return left.focusPath === right.focusPath && left.focusRequestId === right.focusRequestId;
+    return workingDiffTabTargetsEqual(left, right);
   }
   if (left.kind === "files" && right.kind === "files") {
-    return true;
+    return targetWorkspaceIdsEqual(left, right);
   }
   if (left.kind === "changes_tree" && right.kind === "changes_tree") {
-    return true;
+    return targetWorkspaceIdsEqual(left, right);
   }
   if (left.kind === "pull_request" && right.kind === "pull_request") {
-    return true;
+    return targetWorkspaceIdsEqual(left, right);
   }
   if (left.kind === "setup" && right.kind === "setup") {
     return left.workspaceId === right.workspaceId;
   }
   if (left.kind === "commit_diff" && right.kind === "commit_diff") {
-    return left.sha === right.sha;
+    return left.sha === right.sha && targetWorkspaceIdsEqual(left, right);
   }
   return false;
+}
+
+function workingDiffTabTargetsEqual(
+  left: Extract<WorkspaceTabTarget, { kind: "working_diff" }>,
+  right: Extract<WorkspaceTabTarget, { kind: "working_diff" }>,
+): boolean {
+  return (
+    targetWorkspaceIdsEqual(left, right) &&
+    left.focusPath === right.focusPath &&
+    left.focusRequestId === right.focusRequestId
+  );
 }
 
 function workspaceDraftTabSetupsEqual(
@@ -214,21 +256,21 @@ export function buildDeterministicWorkspaceTabId(target: WorkspaceTabTarget): st
     return `setup_${target.workspaceId}`;
   }
   if (target.kind === "commit_diff") {
-    return `commit_diff_${target.sha}`;
+    return scopedTabId(`commit_diff_${target.sha}`, target);
   }
   if (target.kind === "working_diff") {
-    return "working_diff";
+    return scopedTabId("working_diff", target);
   }
   if (target.kind === "changes_tree" || target.kind === "files" || target.kind === "pull_request") {
-    return target.kind;
+    return scopedTabId(target.kind, target);
   }
   if (target.kind === "plugin") {
     const identity = `${target.pluginId.length}_${target.pluginId}_${target.panelId.length}_${target.panelId}`;
     return target.context === "workspace"
-      ? `plugin_workspace_${identity}`
+      ? scopedTabId(`plugin_workspace_${identity}`, target)
       : `plugin_agent_${identity}_${target.agentId.length}_${target.agentId}`;
   }
-  return `file_${target.path}`;
+  return scopedTabId(`file_${target.path}`, target);
 }
 
 function normalizePluginTabTarget(
@@ -238,10 +280,25 @@ function normalizePluginTabTarget(
   const panelId = trimNonEmpty(value.panelId);
   if (!pluginId || !panelId) return null;
   if (value.context === "workspace") {
-    return { kind: "plugin", pluginId, panelId, context: "workspace" };
+    return {
+      kind: "plugin",
+      pluginId,
+      panelId,
+      context: "workspace",
+      ...targetWorkspaceId(value),
+    };
   }
   const agentId = trimNonEmpty(value.agentId);
-  return agentId ? { kind: "plugin", pluginId, panelId, context: "agent", agentId } : null;
+  return agentId
+    ? {
+        kind: "plugin",
+        pluginId,
+        panelId,
+        context: "agent",
+        agentId,
+        ...targetWorkspaceId(value),
+      }
+    : null;
 }
 
 function trimNonEmpty(value: string | null | undefined): string | null {
@@ -256,7 +313,7 @@ function normalizeFileTabTarget(
   value: Extract<WorkspaceTabTarget, { kind: "file" }>,
 ): WorkspaceTabTarget | null {
   const location = normalizeWorkspaceFileLocation(value);
-  return location ? { kind: "file", ...location } : null;
+  return location ? { kind: "file", ...location, ...targetWorkspaceId(value) } : null;
 }
 
 function normalizeWorkingDiffTabTarget(
@@ -266,9 +323,29 @@ function normalizeWorkingDiffTabTarget(
   const focusRequestId = normalizePositiveInteger(value.focusRequestId);
   return {
     kind: "working_diff" as const,
+    ...targetWorkspaceId(value),
     ...(focusPath ? { focusPath } : {}),
     ...(focusRequestId ? { focusRequestId } : {}),
   };
+}
+
+function targetWorkspaceId(value: { workspaceId?: string }): {
+  workspaceId?: string;
+} {
+  const workspaceId = trimNonEmpty(value.workspaceId);
+  return workspaceId ? { workspaceId } : {};
+}
+
+function targetWorkspaceIdsEqual(
+  left: { workspaceId?: string },
+  right: { workspaceId?: string },
+): boolean {
+  return trimNonEmpty(left.workspaceId) === trimNonEmpty(right.workspaceId);
+}
+
+function scopedTabId(base: string, target: { workspaceId?: string }): string {
+  const workspaceId = trimNonEmpty(target.workspaceId);
+  return workspaceId ? `${base}_${workspaceId.length}_${workspaceId}` : base;
 }
 
 function normalizePositiveInteger(value: number | null | undefined): number | null {
