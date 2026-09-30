@@ -56,6 +56,7 @@ export interface SidebarWorkspaceEntry extends SidebarStatusWorkspacePlacement {
 
 export interface SidebarProjectEntry {
   viewKey: string;
+  projectKey?: string | null;
   projectName: string;
   projectKind: WorkspaceStructureProject["projectKind"];
   iconWorkingDir: string;
@@ -453,6 +454,7 @@ export function buildSidebarProjectsFromHostProjects(input: {
 
   return input.projects.map((project) => ({
     viewKey: project.viewKey,
+    projectKey: project.projectKey,
     projectName: project.projectName,
     projectKind: project.projectKind,
     iconWorkingDir: project.iconWorkingDir,
