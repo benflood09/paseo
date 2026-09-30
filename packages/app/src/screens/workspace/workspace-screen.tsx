@@ -1539,6 +1539,23 @@ function useLastMainPane(input: {
   return lastMainPaneRef;
 }
 
+function workspaceTargetWithContext(
+  target: WorkspaceTabTarget,
+  tabScope: "project" | "workspace",
+  sourceWorkspaceId: string | null | undefined,
+  currentWorkspaceId: string,
+): WorkspaceTabTarget {
+  if (tabScope !== "project" || target.kind === "setup" || target.workspaceId?.trim()) {
+    return target;
+  }
+  return {
+    ...target,
+    workspaceId: sourceWorkspaceId?.trim() || currentWorkspaceId,
+  } as WorkspaceTabTarget;
+}
+
+// Workspace routing and lifecycle remain in this established component; tab policy adds branches.
+// oxlint-disable-next-line eslint(complexity)
 function WorkspaceScreenContent({
   serverId,
   workspaceId,
@@ -1648,14 +1665,12 @@ function WorkspaceScreenContent({
   const replaceWorkspaceTabTarget = useWorkspaceLayoutStore((state) => state.replaceTab);
   const withWorkspaceContext = useCallback(
     (target: WorkspaceTabTarget, sourceWorkspaceId?: string | null): WorkspaceTabTarget =>
-      organizationPolicy.tabScope !== "project" ||
-      target.kind === "setup" ||
-      target.workspaceId?.trim()
-        ? target
-        : ({
-            ...target,
-            workspaceId: sourceWorkspaceId?.trim() || normalizedWorkspaceId,
-          } as WorkspaceTabTarget),
+      workspaceTargetWithContext(
+        target,
+        organizationPolicy.tabScope,
+        sourceWorkspaceId,
+        normalizedWorkspaceId,
+      ),
     [normalizedWorkspaceId, organizationPolicy.tabScope],
   );
   const openWorkspaceTabFocused = useCallback(
