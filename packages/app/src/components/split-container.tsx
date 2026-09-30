@@ -101,6 +101,7 @@ interface SplitContainerProps {
   normalizedWorkspaceId: string;
   isWorkspaceFocused: boolean;
   uiTabs: WorkspaceTab[];
+  hideAgentTabs?: boolean;
   hoveredCloseTabKey: string | null;
   setHoveredCloseTabKey: Dispatch<SetStateAction<string | null>>;
   closingTabIds: Set<string>;
@@ -232,13 +233,17 @@ function computeTabOverDropPreview(input: {
   rects: DragMoveRects;
   panesById: Map<string, SplitPane>;
   uiTabs: WorkspaceTab[];
+  hideAgentTabs?: boolean;
 }): TabDropPreview | null {
-  const { activeData, overData, rects, panesById, uiTabs } = input;
+  const { activeData, overData, rects, panesById, uiTabs, hideAgentTabs } = input;
   const targetPane = panesById.get(overData.paneId) ?? null;
   if (!targetPane) {
     return null;
   }
-  const targetTabs = getWorkspacePaneDescriptors({ pane: targetPane, tabs: uiTabs });
+  const targetTabs = visibleTabDescriptors(
+    getWorkspacePaneDescriptors({ pane: targetPane, tabs: uiTabs }),
+    hideAgentTabs,
+  );
   return computeTabDropPreview({
     activePaneId: activeData.paneId,
     activeTabId: activeData.tabId,
@@ -254,6 +259,23 @@ function computeTabOverDropPreview(input: {
       width: rects.overRect.width,
     },
   });
+}
+
+function visibleTabDescriptors(tabs: WorkspaceTabDescriptor[], hideAgentTabs?: boolean) {
+  return hideAgentTabs ? tabs.filter((tab) => tab.target.kind !== "agent") : tabs;
+}
+
+function mergeVisibleTabOrder(
+  allTabs: WorkspaceTabDescriptor[],
+  visibleTabIds: string[],
+  hideAgentTabs?: boolean,
+): string[] {
+  if (!hideAgentTabs) return visibleTabIds;
+  let visibleIndex = 0;
+  const merged = allTabs.map((tab) =>
+    tab.target.kind === "agent" ? tab.tabId : (visibleTabIds[visibleIndex++] ?? tab.tabId),
+  );
+  return [...merged, ...visibleTabIds.slice(visibleIndex)];
 }
 
 function computePaneOverDropPreview(input: {
@@ -314,6 +336,7 @@ export function SplitContainer({
   normalizedWorkspaceId,
   isWorkspaceFocused,
   uiTabs,
+  hideAgentTabs,
   hoveredCloseTabKey,
   setHoveredCloseTabKey,
   closingTabIds,
@@ -542,6 +565,7 @@ export function SplitContainer({
           rects,
           panesById,
           uiTabs,
+          hideAgentTabs,
         });
         setDropPreview(null);
         setTabDropPreview(preview);
@@ -556,7 +580,7 @@ export function SplitContainer({
 
       setDropPreview(computePaneOverDropPreview({ overData, rects }));
     },
-    [normalizedServerId, panesById, explorerSidebarPaneId, uiTabs],
+    [normalizedServerId, panesById, explorerSidebarPaneId, uiTabs, hideAgentTabs],
   );
 
   const applyTabDropEnd = useCallback(
@@ -568,8 +592,10 @@ export function SplitContainer({
         return;
       }
 
-      const sourceTabs = getWorkspacePaneDescriptors({ pane: sourcePane, tabs: uiTabs });
-      const targetTabs = getWorkspacePaneDescriptors({ pane: targetPane, tabs: uiTabs });
+      const allSourceTabs = getWorkspacePaneDescriptors({ pane: sourcePane, tabs: uiTabs });
+      const allTargetTabs = getWorkspacePaneDescriptors({ pane: targetPane, tabs: uiTabs });
+      const sourceTabs = visibleTabDescriptors(allSourceTabs, hideAgentTabs);
+      const targetTabs = visibleTabDescriptors(allTargetTabs, hideAgentTabs);
       const sourceIndex = sourceTabs.findIndex((tab) => tab.tabId === activeData.tabId);
       const resolvedTabDropPreview =
         tabDropPreview?.paneId === overData.paneId ? tabDropPreview : null;
@@ -586,7 +612,11 @@ export function SplitContainer({
           );
           onReorderTabsInPane(
             activeData.paneId,
-            nextTabs.map((tab) => tab.tabId),
+            mergeVisibleTabOrder(
+              allSourceTabs,
+              nextTabs.map((tab) => tab.tabId),
+              hideAgentTabs,
+            ),
           );
         }
         return;
@@ -595,9 +625,12 @@ export function SplitContainer({
       const nextTargetTabIds = targetTabs.map((tab) => tab.tabId);
       nextTargetTabIds.splice(resolvedTabDropPreview.insertionIndex, 0, activeData.tabId);
       onMoveTabToPane(activeData.tabId, overData.paneId);
-      onReorderTabsInPane(overData.paneId, nextTargetTabIds);
+      onReorderTabsInPane(
+        overData.paneId,
+        mergeVisibleTabOrder(allTargetTabs, nextTargetTabIds, hideAgentTabs),
+      );
     },
-    [onMoveTabToPane, onReorderTabsInPane, panesById, tabDropPreview, uiTabs],
+    [hideAgentTabs, onMoveTabToPane, onReorderTabsInPane, panesById, tabDropPreview, uiTabs],
   );
 
   const applyPaneDropEnd = useCallback(
@@ -663,6 +696,7 @@ export function SplitContainer({
                   node={renderRoot}
                   workspaceKey={workspaceKey}
                   uiTabs={uiTabs}
+                  hideAgentTabs={hideAgentTabs}
                   focusedPaneId={layout.focusedPaneId}
                   normalizedServerId={normalizedServerId}
                   normalizedWorkspaceId={normalizedWorkspaceId}
@@ -925,6 +959,7 @@ function SplitNodeView({
   node,
   workspaceKey,
   uiTabs,
+  hideAgentTabs,
   focusedPaneId,
   normalizedServerId,
   normalizedWorkspaceId,
@@ -1013,6 +1048,7 @@ function SplitNodeView({
           <SplitPaneView
             pane={node.pane}
             uiTabs={uiTabs}
+            hideAgentTabs={hideAgentTabs}
             isFocused={node.pane.id === focusedPaneId}
             normalizedServerId={normalizedServerId}
             normalizedWorkspaceId={normalizedWorkspaceId}
@@ -1065,6 +1101,7 @@ function SplitNodeView({
               node={child}
               workspaceKey={workspaceKey}
               uiTabs={uiTabs}
+              hideAgentTabs={hideAgentTabs}
               focusedPaneId={focusedPaneId}
               normalizedServerId={normalizedServerId}
               normalizedWorkspaceId={normalizedWorkspaceId}
@@ -1125,6 +1162,7 @@ function SplitNodeView({
 function SplitPaneView({
   pane,
   uiTabs,
+  hideAgentTabs,
   isFocused,
   normalizedServerId,
   normalizedWorkspaceId,
@@ -1170,16 +1208,20 @@ function SplitPaneView({
     [pane, uiTabs],
   );
   const paneTabs = useMemo(() => paneState.tabs.map((tab) => tab.descriptor), [paneState.tabs]);
+  const visiblePaneTabs = useMemo(
+    () => visibleTabDescriptors(paneTabs, hideAgentTabs),
+    [hideAgentTabs, paneTabs],
+  );
   const activeTabDescriptor = paneState.activeTab?.descriptor ?? null;
   const desktopTabRowItems = useMemo<WorkspaceDesktopTabRowItem[]>(
     () =>
-      paneTabs.map((tab) => ({
+      visiblePaneTabs.map((tab) => ({
         tab,
         isActive: tab.key === activeTabDescriptor?.key,
         isCloseHovered: hoveredCloseTabKey === tab.key,
         isClosingTab: closingTabIds.has(tab.tabId),
       })),
-    [activeTabDescriptor?.key, closingTabIds, hoveredCloseTabKey, paneTabs],
+    [activeTabDescriptor?.key, closingTabIds, hoveredCloseTabKey, visiblePaneTabs],
   );
 
   useEffect(() => {
@@ -1218,25 +1260,29 @@ function SplitPaneView({
 
   const paneId = pane.id;
   const handleCloseTabsToLeft = useCallback(
-    (tabId: string) => onCloseTabsToLeft(tabId, paneTabs),
-    [onCloseTabsToLeft, paneTabs],
+    (tabId: string) => onCloseTabsToLeft(tabId, visiblePaneTabs),
+    [onCloseTabsToLeft, visiblePaneTabs],
   );
   const handleCloseTabsToRight = useCallback(
-    (tabId: string) => onCloseTabsToRight(tabId, paneTabs),
-    [onCloseTabsToRight, paneTabs],
+    (tabId: string) => onCloseTabsToRight(tabId, visiblePaneTabs),
+    [onCloseTabsToRight, visiblePaneTabs],
   );
   const handleCloseOtherTabs = useCallback(
-    (tabId: string) => onCloseOtherTabs(tabId, paneTabs),
-    [onCloseOtherTabs, paneTabs],
+    (tabId: string) => onCloseOtherTabs(tabId, visiblePaneTabs),
+    [onCloseOtherTabs, visiblePaneTabs],
   );
   const handleReorderTabs = useCallback(
     (nextTabs: WorkspaceTabDescriptor[]) => {
       onReorderTabsInPane(
         paneId,
-        nextTabs.map((tab) => tab.tabId),
+        mergeVisibleTabOrder(
+          paneTabs,
+          nextTabs.map((tab) => tab.tabId),
+          hideAgentTabs,
+        ),
       );
     },
-    [onReorderTabsInPane, paneId],
+    [hideAgentTabs, onReorderTabsInPane, paneId, paneTabs],
   );
   const handleSplitRight = useCallback(
     () => onSplitPaneEmpty({ targetPaneId: paneId, position: "right" }),

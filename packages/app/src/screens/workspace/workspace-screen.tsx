@@ -161,7 +161,10 @@ import {
   deriveWorkspaceAgentVisibility,
   workspaceAgentVisibilityEqual,
 } from "@/workspace-tabs/agent-visibility";
-import { getWorkspaceOrganizationPolicy, useWorkspaceOrganizationStore } from "@/stores/workspace-organization-store";
+import {
+  getWorkspaceOrganizationPolicy,
+  useWorkspaceOrganizationStore,
+} from "@/stores/workspace-organization-store";
 import { deriveWorkspacePaneState } from "@/screens/workspace/workspace-pane-state";
 import {
   buildWorkspacePaneContentModel,
@@ -1625,22 +1628,34 @@ function WorkspaceScreenContent({
       }),
     [normalizedServerId, normalizedWorkspaceId],
   );
-  const persistenceKey = useMemo(() =>
-    organizationPolicy.tabScope === "project"
-      ? buildWorkspaceProjectTabScopeKey({
-          serverId: normalizedServerId,
-          projectKey: workspaceDescriptor?.project?.projectKey ?? workspaceDescriptor?.projectId,
-        }) ?? workspacePersistenceKey
-      : workspacePersistenceKey,
-    [organizationPolicy.tabScope, normalizedServerId, workspaceDescriptor?.project?.projectKey, workspaceDescriptor?.projectId, workspacePersistenceKey],
+  const persistenceKey = useMemo(
+    () =>
+      organizationPolicy.tabScope === "project"
+        ? (buildWorkspaceProjectTabScopeKey({
+            serverId: normalizedServerId,
+            projectKey: workspaceDescriptor?.project?.projectKey ?? workspaceDescriptor?.projectId,
+          }) ?? workspacePersistenceKey)
+        : workspacePersistenceKey,
+    [
+      organizationPolicy.tabScope,
+      normalizedServerId,
+      workspaceDescriptor?.project?.projectKey,
+      workspaceDescriptor?.projectId,
+      workspacePersistenceKey,
+    ],
   );
   const openTab = useWorkspaceLayoutStore((state) => state.openTab);
   const replaceWorkspaceTabTarget = useWorkspaceLayoutStore((state) => state.replaceTab);
   const withWorkspaceContext = useCallback(
     (target: WorkspaceTabTarget, sourceWorkspaceId?: string | null): WorkspaceTabTarget =>
-      organizationPolicy.tabScope !== "project" || target.kind === "setup" || target.workspaceId?.trim()
+      organizationPolicy.tabScope !== "project" ||
+      target.kind === "setup" ||
+      target.workspaceId?.trim()
         ? target
-        : { ...target, workspaceId: sourceWorkspaceId?.trim() || normalizedWorkspaceId } as WorkspaceTabTarget,
+        : ({
+            ...target,
+            workspaceId: sourceWorkspaceId?.trim() || normalizedWorkspaceId,
+          } as WorkspaceTabTarget),
     [normalizedWorkspaceId, organizationPolicy.tabScope],
   );
   const openWorkspaceTabFocused = useCallback(
@@ -1654,7 +1669,14 @@ function WorkspaceScreenContent({
       target: WorkspaceTabTarget,
       placement?: WorkspaceTabPlacement,
       stateValue?: JsonValue,
-    ) => openTab({ workspaceKey, target: withWorkspaceContext(target), intent: "new", placement, state: stateValue }),
+    ) =>
+      openTab({
+        workspaceKey,
+        target: withWorkspaceContext(target),
+        intent: "new",
+        placement,
+        state: stateValue,
+      }),
     [openTab, withWorkspaceContext],
   );
   const revealWorkspaceChildTab = useCallback(
@@ -1663,7 +1685,14 @@ function WorkspaceScreenContent({
       target: WorkspaceTabTarget,
       parentTabId: string,
       placement?: WorkspaceTabPlacement,
-    ) => openTab({ workspaceKey, target: withWorkspaceContext(target), intent: "reveal", parentTabId, placement }),
+    ) =>
+      openTab({
+        workspaceKey,
+        target: withWorkspaceContext(target),
+        intent: "reveal",
+        parentTabId,
+        placement,
+      }),
     [openTab, withWorkspaceContext],
   );
   // File targets stay identity-stable so the same path reuses its tab. Keep navigation
@@ -1884,7 +1913,12 @@ function WorkspaceScreenContent({
   });
   const openWorkspaceTabInBackground = useCallback(
     (workspaceKey: string, target: WorkspaceTabTarget, placement?: WorkspaceTabPlacement) =>
-      openTab({ workspaceKey, target: withWorkspaceContext(target), intent: "background", placement }),
+      openTab({
+        workspaceKey,
+        target: withWorkspaceContext(target),
+        intent: "background",
+        placement,
+      }),
     [openTab, withWorkspaceContext],
   );
   const openInSidePane = useSettings((settings) => settings.openInSidePane);
@@ -1942,7 +1976,13 @@ function WorkspaceScreenContent({
       }
       closeWorkspaceTab(persistenceKey, normalizedTabId);
     },
-    [closeWorkspaceTab, hideWorkspaceAgent, organizationPolicy.agentTabClose, persistenceKey, unpinWorkspaceAgent],
+    [
+      closeWorkspaceTab,
+      hideWorkspaceAgent,
+      organizationPolicy.agentTabClose,
+      persistenceKey,
+      unpinWorkspaceAgent,
+    ],
   );
 
   const focusedPaneTabState = useMemo(
@@ -2072,8 +2112,12 @@ function WorkspaceScreenContent({
         return false;
       }
       const pending = pendingByDraftId[tab.target.draftId];
-      return pending?.serverId === normalizedServerId && pending.lifecycle === "active" &&
-        (organizationPolicy.tabScope !== "project" || (tab.target.workspaceId ?? normalizedWorkspaceId) === normalizedWorkspaceId);
+      return (
+        pending?.serverId === normalizedServerId &&
+        pending.lifecycle === "active" &&
+        (organizationPolicy.tabScope !== "project" ||
+          (tab.target.workspaceId ?? normalizedWorkspaceId) === normalizedWorkspaceId)
+      );
     });
 
     reconcileWorkspaceTabs(
@@ -2081,7 +2125,10 @@ function WorkspaceScreenContent({
       buildWorkspaceTabSnapshot({
         workspaceId: organizationPolicy.tabScope === "project" ? normalizedWorkspaceId : undefined,
         agentVisibility: workspaceAgentVisibility,
-        autoOpenAgentIds: organizationPolicy.agentTabPopulation === "auto-active" ? workspaceAgentVisibility.autoOpenAgentIds : EMPTY_SET,
+        autoOpenAgentIds:
+          organizationPolicy.agentTabPopulation === "auto-active"
+            ? workspaceAgentVisibility.autoOpenAgentIds
+            : EMPTY_SET,
         agentsHydrated: hasHydratedAgents,
         terminalsHydrated: organizationPolicy.tabScope !== "project" && terminalsQuery.isSuccess,
         knownTerminalIds,
@@ -2225,7 +2272,11 @@ function WorkspaceScreenContent({
   ]);
 
   const handleOpenFileFromChat = useCallback(
-    (location: WorkspaceFileLocation, parentTabId?: string | null, sourceWorkspaceId?: string | null) => {
+    (
+      location: WorkspaceFileLocation,
+      parentTabId?: string | null,
+      sourceWorkspaceId?: string | null,
+    ) => {
       const normalizedLocation = normalizeWorkspaceFileLocation(location);
       if (!normalizedLocation) {
         return;
@@ -2261,7 +2312,11 @@ function WorkspaceScreenContent({
   );
 
   const handleOpenPreferredAssistantFile = useCallback(
-    (input: { location: WorkspaceFileLocation; parentTabId?: string | null; workspaceId?: string | null }) => {
+    (input: {
+      location: WorkspaceFileLocation;
+      parentTabId?: string | null;
+      workspaceId?: string | null;
+    }) => {
       const location = normalizeWorkspaceFileLocation(input.location);
       if (!location) {
         return;
@@ -2602,7 +2657,7 @@ function WorkspaceScreenContent({
         }
 
         if (organizationPolicy.agentTabClose === "layout-only") {
-          setHoveredCloseTabKey((current) => current === tabId ? null : current);
+          setHoveredCloseTabKey((current) => (current === tabId ? null : current));
           closeWorkspaceTabWithCleanup({ tabId, target: { kind: "agent", agentId } });
           return;
         }
@@ -2983,11 +3038,19 @@ function WorkspaceScreenContent({
     [handleBulkCloseTabs, t],
   );
 
+  const desktopVisibleTabs = useMemo(
+    () =>
+      organizationPolicy.sidebarMode === "threads"
+        ? tabs.filter((tab) => tab.target.kind !== "agent")
+        : tabs,
+    [organizationPolicy.sidebarMode, tabs],
+  );
+
   const handleCloseTabsToLeft = useCallback(
     async (tabId: string) => {
-      await handleCloseTabsToLeftInPane(tabId, tabs);
+      await handleCloseTabsToLeftInPane(tabId, desktopVisibleTabs);
     },
-    [handleCloseTabsToLeftInPane, tabs],
+    [desktopVisibleTabs, handleCloseTabsToLeftInPane],
   );
 
   const handleCloseTabsToRightInPane = useCallback(
@@ -3007,9 +3070,9 @@ function WorkspaceScreenContent({
 
   const handleCloseTabsToRight = useCallback(
     async (tabId: string) => {
-      await handleCloseTabsToRightInPane(tabId, tabs);
+      await handleCloseTabsToRightInPane(tabId, desktopVisibleTabs);
     },
-    [handleCloseTabsToRightInPane, tabs],
+    [desktopVisibleTabs, handleCloseTabsToRightInPane],
   );
 
   const handleCloseOtherTabsInPane = useCallback(
@@ -3026,9 +3089,9 @@ function WorkspaceScreenContent({
 
   const handleCloseOtherTabs = useCallback(
     async (tabId: string) => {
-      await handleCloseOtherTabsInPane(tabId, tabs);
+      await handleCloseOtherTabsInPane(tabId, desktopVisibleTabs);
     },
-    [handleCloseOtherTabsInPane, tabs],
+    [desktopVisibleTabs, handleCloseOtherTabsInPane],
   );
 
   const handleClosePane = useCallback(
@@ -3632,8 +3695,11 @@ function WorkspaceScreenContent({
           if (!persistenceKey) {
             return;
           }
-          replaceWorkspaceTabTarget(persistenceKey, input.tab.tabId,
-            withWorkspaceContext(target, input.tab.target.workspaceId));
+          replaceWorkspaceTabTarget(
+            persistenceKey,
+            input.tab.tabId,
+            withWorkspaceContext(target, input.tab.target.workspaceId),
+          );
         },
         onSetCurrentTabState: (state) => {
           if (persistenceKey) {
@@ -3739,13 +3805,13 @@ function WorkspaceScreenContent({
 
   const desktopTabRowItems = useMemo<WorkspaceDesktopTabRowItem[]>(
     () =>
-      tabs.map((tab) => ({
+      desktopVisibleTabs.map((tab) => ({
         tab,
         isActive: tab.tabId === activeTabDescriptor?.tabId,
         isCloseHovered: hoveredCloseTabKey === tab.key,
         isClosingTab: closingTabIds.has(tab.tabId),
       })),
-    [activeTabDescriptor?.tabId, closingTabIds, hoveredCloseTabKey, tabs],
+    [activeTabDescriptor?.tabId, closingTabIds, hoveredCloseTabKey, desktopVisibleTabs],
   );
 
   const handleSplitPane = useCallback(
@@ -3797,12 +3863,22 @@ function WorkspaceScreenContent({
       if (!focusedPaneId) {
         return;
       }
-      handleReorderTabsInPane(
-        focusedPaneId,
-        nextTabs.map((tab) => tab.tabId),
-      );
+      const visibleTabIds = nextTabs.map((tab) => tab.tabId);
+      let visibleIndex = 0;
+      const orderedTabIds =
+        organizationPolicy.sidebarMode === "threads"
+          ? [
+              ...tabs.map((tab) =>
+                tab.target.kind === "agent"
+                  ? tab.tabId
+                  : (visibleTabIds[visibleIndex++] ?? tab.tabId),
+              ),
+              ...visibleTabIds.slice(visibleIndex),
+            ]
+          : visibleTabIds;
+      handleReorderTabsInPane(focusedPaneId, orderedTabIds);
     },
-    [focusedPaneId, handleReorderTabsInPane],
+    [focusedPaneId, handleReorderTabsInPane, organizationPolicy.sidebarMode, tabs],
   );
 
   const containerStyle = [styles.container, styles.containerWorkspaceBackground];
@@ -4032,6 +4108,7 @@ function WorkspaceScreenContent({
         normalizedWorkspaceId={normalizedWorkspaceId}
         isWorkspaceFocused={isRouteFocused}
         uiTabs={uiTabs}
+        hideAgentTabs={organizationPolicy.sidebarMode === "threads"}
         hoveredCloseTabKey={hoveredCloseTabKey}
         setHoveredCloseTabKey={setHoveredCloseTabKey}
         closingTabIds={closingTabIds}
@@ -4069,6 +4146,7 @@ function WorkspaceScreenContent({
     normalizedWorkspaceId,
     isRouteFocused,
     uiTabs,
+    organizationPolicy.sidebarMode,
     hoveredCloseTabKey,
     closingTabIds,
     navigateToTabId,
