@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AggregatedAgent } from "./use-aggregated-agents";
 import type { SidebarProjectEntry } from "./sidebar-workspaces-view-model";
-import { groupSidebarThreads } from "./sidebar-thread-projects";
+import { groupSidebarThreads, hasStoredSidebarProject } from "./sidebar-thread-projects";
 
 const project: SidebarProjectEntry = {
   viewKey: "shared-repo",
@@ -59,5 +59,7 @@ describe("groupSidebarThreads", () => {
       agents: [agent({ id: "orphan", serverId: "vm", cwd: "/home/cloud-vm/other" })],
     });
     expect(groups[1]?.agents[0]?.id).toBe("orphan");
+    expect(hasStoredSidebarProject(groups[0]!.project)).toBe(true);
+    expect(hasStoredSidebarProject(groups[1]!.project)).toBe(false);
   });
 });

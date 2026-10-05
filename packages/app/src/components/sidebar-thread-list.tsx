@@ -4,13 +4,17 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ChevronDown, ChevronRight, Plus, X } from "lucide-react-native";
 import { useAggregatedAgents, type AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import { useArchiveAgent } from "@/hooks/use-archive-agent";
-import { groupSidebarThreads, type SidebarThreadProject } from "@/hooks/sidebar-thread-projects";
-import type { SidebarProjectEntry } from "@/hooks/sidebar-workspaces-view-model";
+import { groupSidebarThreads, hasStoredSidebarProject, type SidebarThreadProject } from "@/hooks/sidebar-thread-projects";
+import type { SidebarProjectEntry, SidebarWorkspacePlacement } from "@/hooks/sidebar-workspaces-view-model";
 import { useSidebarCollapsedSectionsStore } from "@/stores/sidebar-collapsed-sections-store";
 import { navigateToAgent } from "@/utils/navigate-to-agent";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
 import { useSessionStore } from "@/stores/session-store";
 import { getProviderIcon } from "@/components/provider-icons";
+import { ProjectKebabMenu } from "@/components/sidebar-workspace-list";
+import { useRemoveSidebarProject } from "@/components/sidebar/use-remove-sidebar-project";
+import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
+import { resolveSidebarProjectLocalPath } from "@/utils/sidebar-project-row-model";
 import { hasActiveSidebarLabelFilter, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
   DropdownMenu,
@@ -18,7 +22,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { SidebarWorkspacePlacement } from "@/hooks/sidebar-workspaces-view-model";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
 const ThemedChevronRight = withUnistyles(ChevronRight);
@@ -82,6 +85,10 @@ function SidebarThreadProjectRow({
   onThreadPress?: () => void;
 }) {
   const { project, agents } = group;
+  const localDaemonServerId = useLocalDaemonServerId();
+  const projectPath = resolveSidebarProjectLocalPath(project, localDaemonServerId);
+  const { handleRemoveProject, isRemovingProject } = useRemoveSidebarProject(project, project.projectName);
+  const hasStoredProject = hasStoredSidebarProject(project);
   const collapsed = useSidebarCollapsedSectionsStore((state) =>
     state.collapsedProjectKeys.has(project.viewKey),
   );
@@ -122,6 +129,15 @@ function SidebarThreadProjectRow({
           </Text>
           <Text style={styles.count}>{agents.length}</Text>
         </Pressable>
+        {hasStoredProject ? (
+          <ProjectKebabMenu
+            projectViewKey={project.viewKey}
+            settingsTarget={project.hosts[0] ?? null}
+            projectPath={projectPath}
+            onRemoveProject={handleRemoveProject}
+            removeProjectStatus={isRemovingProject ? "pending" : "idle"}
+          />
+        ) : null}
         {project.workspaces.length === 1 ? (
           <NewThreadWorkspaceButton
             projectName={project.projectName}
