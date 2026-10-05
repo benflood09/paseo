@@ -1,6 +1,10 @@
 import type { AggregatedAgent } from "@/hooks/use-aggregated-agents";
 import type { SidebarProjectEntry } from "@/hooks/sidebar-workspaces-view-model";
 
+export function hasStoredSidebarProject(project: SidebarProjectEntry): boolean {
+  return project.hosts.some((host) => host.projectId.length > 0);
+}
+
 export interface SidebarThreadProject {
   project: SidebarProjectEntry;
   agents: AggregatedAgent[];
