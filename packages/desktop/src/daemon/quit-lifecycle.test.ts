@@ -59,7 +59,7 @@ describe("quit-lifecycle", () => {
 
     const stopped = await stopDesktopManagedDaemonOnQuitIfNeeded({
       settingsStore: { get: async () => SETTINGS_KEEP_RUNNING },
-      isDesktopManagedDaemonRunning: () => {
+      isLocalDaemonRunning: async () => {
         events.push("inspect");
         return true;
       },
@@ -75,12 +75,12 @@ describe("quit-lifecycle", () => {
     expect(events).toEqual([]);
   });
 
-  it("does not stop a manually started daemon on quit", async () => {
+  it("does not stop when no daemon runs in the desktop home", async () => {
     const events: string[] = [];
 
     const stopped = await stopDesktopManagedDaemonOnQuitIfNeeded({
       settingsStore: { get: async () => SETTINGS_STOP_ON_QUIT },
-      isDesktopManagedDaemonRunning: () => false,
+      isLocalDaemonRunning: async () => false,
       stopDaemon: async () => {
         events.push("stop");
       },
@@ -93,12 +93,12 @@ describe("quit-lifecycle", () => {
     expect(events).toEqual([]);
   });
 
-  it("shows feedback then stops a desktop-managed daemon", async () => {
+  it("shows feedback then stops the daemon in the desktop home", async () => {
     const events: string[] = [];
 
     const stopped = await stopDesktopManagedDaemonOnQuitIfNeeded({
       settingsStore: { get: async () => SETTINGS_STOP_ON_QUIT },
-      isDesktopManagedDaemonRunning: () => true,
+      isLocalDaemonRunning: async () => true,
       stopDaemon: async () => {
         events.push("stop");
       },

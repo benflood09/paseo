@@ -131,32 +131,14 @@ function logFilePath(): string {
   return path.join(getPaseoHome(), DAEMON_LOG_FILENAME);
 }
 
-export function isDesktopManagedDaemonRunningSync(): boolean {
-  if (!ownedLaunch) return false;
-  try {
-    const lock = JSON.parse(readFileSync(path.join(ownedLaunch.home, "paseo.pid"), "utf8"));
-    return isSameDaemonInstance(lock, ownedLaunch.instance) && isProcessRunning(lock.pid);
-  } catch {
-    return false;
-  }
+export async function isLocalDaemonRunning(): Promise<boolean> {
+  return Boolean(await readDaemonInstance(getPaseoHome()));
 }
 
 export async function stopDesktopDaemonViaCli(
   reason: DesktopDaemonStopReason = DEFAULT_DESKTOP_DAEMON_STOP_REASON,
 ): Promise<void> {
   await stopDesktopDaemon(reason);
-}
-
-function isProcessRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (err) {
-    if (typeof err === "object" && err !== null && "code" in err && err.code === "EPERM") {
-      return true;
-    }
-    return false;
-  }
 }
 
 function logDesktopDaemonLifecycle(message: string, details?: Record<string, unknown>): void {
@@ -347,7 +329,9 @@ export async function stopDesktopDaemon(
     throw new Error(
       "Daemon changed since confirmation; inspect its current home and PID before stopping it.",
     );
-  if (!instance || (!owned && !explicit)) return resolveDesktopDaemonStatus();
+  const stoppingLocalDaemonOnQuit = reason === "quit" && instance !== null;
+  if (!instance || (!owned && !explicit && !stoppingLocalDaemonOnQuit))
+    return resolveDesktopDaemonStatus();
   logDesktopDaemonLifecycle("stopping captured supervisor", { reason, pid: instance.pid, owned });
   await stopDaemonInstance(home, {
     instance,
