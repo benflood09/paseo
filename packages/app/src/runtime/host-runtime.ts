@@ -1464,6 +1464,93 @@ export class HostRuntimeStore {
   private lastConnectionStatusByServer = new Map<string, HostRuntimeConnectionStatus>();
   private connectionStatusStartedAtByServer = new Map<string, number>();
   private queuedAgentDrainInFlight = new Set<string>();
+  private completionQueueSubmissionInFlight = new Map<string, number>();
+  private completionSubscriptions = new Map<string, () => void>();
+
+  async prepareQueuedAgentMessage(serverId: string, agentId: string): Promise<void> {
+    const session = useSessionStore.getState().sessions[serverId];
+    if (session?.serverInfo?.features?.completionGuard !== true) return;
+    if (!session.client) throw new Error("Host disconnected");
+    const pendingMessageCount = (session.queuedMessages.get(agentId)?.length ?? 0) + 1;
+    await session.client.updateCompletionInputState(agentId, { pendingMessageCount, intent: "queue" });
+  }
+
+  beginQueuedAgentSubmission(serverId: string, agentId: string): () => void {
+    const key = `${serverId}:${agentId}`;
+    const inFlight = this.completionQueueSubmissionInFlight.get(key) ?? 0;
+    this.completionQueueSubmissionInFlight.set(key, inFlight + 1);
+    return () => {
+      const remaining = (this.completionQueueSubmissionInFlight.get(key) ?? 1) - 1;
+      if (remaining > 0) {
+        this.completionQueueSubmissionInFlight.set(key, remaining);
+        return;
+      }
+      this.completionQueueSubmissionInFlight.delete(key);
+      const session = useSessionStore.getState().sessions[serverId];
+      if (!session?.client) return;
+      void this.mirrorCompletionQueue(session.client, agentId, session.queuedMessages.get(agentId)?.length ?? 0);
+    };
+  }
+
+  private async mirrorCompletionQueue(client: DaemonClient, agentId: string, count: number): Promise<boolean> {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await client.updateCompletionInputState(agentId, { pendingMessageCount: count });
+        return true;
+      } catch (error) {
+        if (attempt === 0) continue;
+        console.error("[HostRuntime] completion queue mirror failed", error);
+      }
+    }
+    if (count > 0) {
+      try {
+        await client.cancelAgent(agentId);
+      } catch (error) {
+        console.error("[HostRuntime] completion queue fail-closed stop failed", error);
+      }
+    }
+    return false;
+  }
+
+  private observeCompletionInputs(serverId: string): void {
+    let previousClient: DaemonClient | null = null;
+    let previousEpoch = -1;
+    let counts = new Map<string, number>();
+    let failures = new Map<string, number>();
+    let pending = new Set<string>();
+    const synchronize = () => {
+      const session = useSessionStore.getState().sessions[serverId];
+      if (!session?.client || session.serverInfo?.features?.completionGuard !== true) return;
+      const controller = this.controllers.get(serverId);
+      const connectionEpoch = controller?.getSnapshot().connectionEpoch ?? 0;
+      if (previousClient !== session.client || previousEpoch !== connectionEpoch) {
+        counts = new Map();
+        failures = new Map();
+        pending = new Set();
+        previousClient = session.client;
+        previousEpoch = connectionEpoch;
+      }
+      const agentIds = new Set([...session.agents.keys(), ...session.queuedMessages.keys()]);
+      for (const agentId of agentIds) {
+        const count = session.queuedMessages.get(agentId)?.length ?? 0;
+        if (counts.get(agentId) === count || failures.get(agentId) === count || pending.has(agentId)) continue;
+        if (this.completionQueueSubmissionInFlight.has(`${serverId}:${agentId}`)) continue;
+        pending.add(agentId);
+        const client = session.client;
+        const epoch = previousEpoch;
+        void this.mirrorCompletionQueue(client, agentId, count).then((acknowledged) => {
+          if (previousClient !== client || previousEpoch !== epoch) return;
+          pending.delete(agentId);
+          if (acknowledged) counts.set(agentId, count);
+          else failures.set(agentId, count);
+          synchronize();
+        });
+      }
+    };
+    this.completionSubscriptions.set(serverId, useSessionStore.subscribe(synchronize));
+    synchronize();
+  }
+
   private directorySyncByServer = new Map<string, DirectorySync>();
   private nextCancellationRequestId = 0;
   private timelineReplicaByServer = new Map<string, TimelineReplica>();
@@ -1726,6 +1813,8 @@ export class HostRuntimeStore {
       return;
     }
 
+    this.completionSubscriptions.get(oldServerId)?.();
+    this.completionSubscriptions.delete(oldServerId);
     rekeyMap(this.controllers, oldServerId, newServerId);
     rekeyMap(this.lastConnectionStatusByServer, oldServerId, newServerId);
     rekeyMap(this.connectionStatusStartedAtByServer, oldServerId, newServerId);
@@ -1757,6 +1846,7 @@ export class HostRuntimeStore {
     const snapshot = controller.getSnapshot();
     this.clearHostReplica(oldServerId);
     this.syncSessionReplica(newServerId, snapshot);
+    this.observeCompletionInputs(newServerId);
     directory.connectionChanged({
       client: snapshot.client,
       status: snapshot.connectionStatus === "online" ? "online" : "offline",
@@ -2186,6 +2276,8 @@ export class HostRuntimeStore {
       if (nextIds.has(serverId)) {
         continue;
       }
+      this.completionSubscriptions.get(serverId)?.();
+      this.completionSubscriptions.delete(serverId);
       this.controllers.delete(serverId);
       this.lastConnectionStatusByServer.delete(serverId);
       this.connectionStatusStartedAtByServer.delete(serverId);
@@ -2216,6 +2308,7 @@ export class HostRuntimeStore {
       });
       this.controllers.set(host.serverId, controller);
       useSessionStore.getState().initializeSession(host.serverId, null);
+      this.observeCompletionInputs(host.serverId);
       const directory = new DirectorySync(
         host.serverId,
         {
@@ -2333,6 +2426,7 @@ export class HostRuntimeStore {
     }
     this.queuedAgentDrainInFlight.add(drainKey);
     const next = queue[0];
+    const settleCompletionQueue = this.beginQueuedAgentSubmission(serverId, agentId);
     void sendQueuedComposerMessageNow({
       agentId,
       messageId: next.id,
@@ -2369,6 +2463,7 @@ export class HostRuntimeStore {
       })
       .finally(() => {
         this.queuedAgentDrainInFlight.delete(drainKey);
+        settleCompletionQueue();
       });
   }
 

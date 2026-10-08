@@ -3435,39 +3435,117 @@ export class DaemonClient {
   // Agent Interaction
   // ============================================================================
 
+  private completionMessageReservations = new Map<string, number>();
+  private completionInputStates = new Map<string, {
+    inputEpoch: number;
+    pendingMessageCount: number;
+    stopped: boolean;
+  }>();
+
+  async updateCompletionInputState(
+    agentId: string,
+    state: { pendingMessageCount: number; stopped?: boolean; intent?: "sync" | "message" | "stop" | "queue" },
+  ): Promise<void> {
+    if (this.lastServerInfoMessage?.features?.completionGuard !== true) return;
+    const previous = this.completionInputStates.get(agentId);
+    const next = {
+      inputEpoch: Math.max((previous?.inputEpoch ?? 0) + 1, Date.now() * 1000),
+      pendingMessageCount: state.pendingMessageCount,
+      stopped: state.stopped ?? previous?.stopped ?? false,
+    };
+    // Advance locally before awaiting, so a later user action cannot reuse this epoch.
+    this.completionInputStates.set(agentId, next);
+    const requestId = this.createRequestId();
+    const message = SessionInboundMessageSchema.parse({
+      type: "completion.input_state.request", requestId, agentId, intent: state.intent ?? "sync",
+      clientId: this.config.clientId, ...next,
+      pendingMessageCount: next.pendingMessageCount + (this.completionMessageReservations.get(agentId) ?? 0),
+    });
+    const payload = await this.sendRequest({
+      requestId, message, options: { skipQueue: true },
+      select: (msg) => {
+        if (msg.type !== "completion.input_state.response") return null;
+        return msg.payload.requestId === requestId ? msg.payload : null;
+      },
+    });
+    if (!payload.success) throw new Error(payload.error ?? "Completion input state rejected");
+  }
+
+  async evaluateTaskCompletion(input: {
+    agentId: string; turnId: string; owner: "native" | "paseo";
+  }) {
+    if (this.lastServerInfoMessage?.features?.completionGuard !== true) {
+      throw new Error("Host does not support completion guard");
+    }
+    const state = this.completionInputStates.get(input.agentId);
+    if (!state) throw new Error("Completion input state is not registered");
+    const requestId = this.createRequestId();
+    const message = SessionInboundMessageSchema.parse({
+      type: "completion.evaluate.request", requestId, ...input,
+      clientId: this.config.clientId, inputEpoch: state.inputEpoch,
+    });
+    return await this.sendRequest({
+      requestId, message, options: { skipQueue: true },
+      select: (msg) => {
+        if (msg.type !== "completion.evaluate.response") return null;
+        return msg.payload.requestId === requestId ? msg.payload : null;
+      },
+    });
+  }
+
   async sendAgentMessage(
     agentId: string,
     text: string,
     options?: SendMessageOptions,
   ): Promise<void> {
-    const requestId = this.createRequestId();
-    const messageId = options?.messageId ?? crypto.randomUUID();
-    const message = SessionInboundMessageSchema.parse({
-      type: "send_agent_message_request",
-      requestId,
-      agentId,
-      text,
-      ...(messageId ? { messageId } : {}),
-      ...(options?.activeTurnBehavior ? { activeTurnBehavior: options.activeTurnBehavior } : {}),
-      ...(options?.images ? { images: options.images } : {}),
-      ...(options?.attachments ? { attachments: options.attachments } : {}),
-    });
-    const payload = await this.sendRequest({
-      requestId,
-      message,
-      options: { skipQueue: true },
-      select: (msg) => {
-        if (msg.type !== "send_agent_message_response") {
-          return null;
-        }
-        if (msg.payload.requestId !== requestId) {
-          return null;
-        }
-        return msg.payload;
-      },
-    });
-    if (!payload.accepted) {
-      throw new Error(payload.error ?? "sendAgentMessage rejected");
+    const reservations = this.completionMessageReservations.get(agentId) ?? 0;
+    this.completionMessageReservations.set(agentId, reservations + 1);
+    let accepted = false;
+    try {
+      await this.updateCompletionInputState(agentId, {
+        pendingMessageCount: this.completionInputStates.get(agentId)?.pendingMessageCount ?? 0,
+        stopped: false,
+        intent: "message",
+      });
+      const requestId = this.createRequestId();
+      const messageId = options?.messageId ?? crypto.randomUUID();
+      const message = SessionInboundMessageSchema.parse({
+        type: "send_agent_message_request",
+        requestId,
+        agentId,
+        text,
+        ...(messageId ? { messageId } : {}),
+        ...(options?.activeTurnBehavior ? { activeTurnBehavior: options.activeTurnBehavior } : {}),
+        ...(options?.images ? { images: options.images } : {}),
+        ...(options?.attachments ? { attachments: options.attachments } : {}),
+      });
+      const payload = await this.sendRequest({
+        requestId,
+        message,
+        options: { skipQueue: true },
+        select: (msg) => {
+          if (msg.type !== "send_agent_message_response") {
+            return null;
+          }
+          if (msg.payload.requestId !== requestId) {
+            return null;
+          }
+          return msg.payload;
+        },
+      });
+      if (!payload.accepted) {
+        throw new Error(payload.error ?? "sendAgentMessage rejected");
+      }
+      accepted = true;
+    } finally {
+      const pending = this.completionMessageReservations.get(agentId) ?? 1;
+      this.completionMessageReservations.set(agentId, pending - 1);
+      await this.updateCompletionInputState(agentId, {
+        pendingMessageCount: this.completionInputStates.get(agentId)?.pendingMessageCount ?? 0,
+        ...(accepted ? {} : { stopped: true, intent: "stop" as const }),
+      }).catch((error) => {
+        this.logger.error({ err: error }, "Completion input settlement failed");
+      });
     }
   }
 
@@ -3509,6 +3587,13 @@ export class DaemonClient {
   }
 
   async cancelAgent(agentId: string): Promise<void> {
+    void this.updateCompletionInputState(agentId, {
+      pendingMessageCount: this.completionInputStates.get(agentId)?.pendingMessageCount ?? 0,
+      stopped: true,
+      intent: "stop",
+    }).catch((error) => {
+      this.logger.error({ err: error }, "Completion stop mirror failed");
+    });
     const requestId = this.createRequestId();
     const message = SessionInboundMessageSchema.parse({
       type: "cancel_agent_request",
