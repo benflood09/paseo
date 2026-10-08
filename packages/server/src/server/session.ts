@@ -2737,6 +2737,26 @@ export class Session {
         return this.handleProjectIconSetRequest(msg);
       case "send_agent_message_request":
         return this.handleSendAgentMessageRequest(msg);
+      case "completion.input_state.request": {
+        try {
+          this.agentManager.updateCompletionInputState(msg.agentId, msg);
+          this.emit({ type: "completion.input_state.response", payload: {
+            requestId: msg.requestId, agentId: msg.agentId, success: true, error: null,
+          } });
+        } catch {
+          this.emit({ type: "completion.input_state.response", payload: {
+            requestId: msg.requestId, agentId: msg.agentId, success: false, error: "Completion input state rejected",
+          } });
+        }
+        return;
+      }
+      case "completion.evaluate.request": {
+        return this.agentManager.evaluateTaskCompletion({ ...msg, signal: this.delivery.requestSignal }).then((result) => {
+          this.emit({ type: "completion.evaluate.response", payload: {
+            requestId: msg.requestId, agentId: msg.agentId, ...result,
+          } });
+        });
+      }
       case "wait_for_finish_request":
         return this.handleWaitForFinish(msg.agentId, msg.requestId, msg.timeoutMs);
       case "create_agent_request":

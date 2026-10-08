@@ -69,6 +69,20 @@ class FakeDaemonClient {
   public sentAgentMessages: Array<Parameters<DaemonClient["sendAgentMessage"]>> = [];
   public sendAgentMessageFailures: Error[] = [];
   public sendAgentMessageResponses: Promise<void>[] = [];
+  public completionInputUpdates: Array<Parameters<DaemonClient["updateCompletionInputState"]>> = [];
+  public completionInputResponse: Promise<void> = Promise.resolve();
+  public completionInputFailures: Error[] = [];
+  public completionGuard = false;
+  public cancelledCompletionAgents: string[] = [];
+  async cancelAgent(agentId: string): Promise<void> { this.cancelledCompletionAgents.push(agentId); }
+
+  async updateCompletionInputState(...input: Parameters<DaemonClient["updateCompletionInputState"]>): Promise<void> {
+    this.completionInputUpdates.push(input);
+    const failure = this.completionInputFailures.shift();
+    if (failure) throw failure;
+    await this.completionInputResponse;
+  }
+
   private agentUpdateListeners = new Set<
     (message: Extract<SessionOutboundMessage, { type: "agent_update" }>) => void
   >();
@@ -167,7 +181,7 @@ class FakeDaemonClient {
       serverId: "srv_test",
       hostname: "test",
       version: this.daemonVersion,
-      features: { ownedSubscriptions: this.ownedSubscriptions },
+      features: { ownedSubscriptions: this.ownedSubscriptions, completionGuard: this.completionGuard },
     };
   }
 
@@ -4118,4 +4132,55 @@ describe("HostRuntimeStore initial connection hint bootstrap", () => {
     expect(seenProbes).not.toContainEqual(expect.objectContaining({ endpoint: "metro-host:8081" }));
     expect(store.getHosts()).toHaveLength(0);
   });
+});
+
+it("registers pending queue before authorizing local insertion", async () => {
+  const fakeClient = new FakeDaemonClient();
+  const store = new HostRuntimeStore();
+  const serverId = "queue-barrier";
+  useSessionStore.getState().initializeSession(serverId, fakeClient as unknown as DaemonClient, 1);
+  useSessionStore.getState().updateSessionServerInfo(serverId, { serverId, hostname: null, version: null, features: { completionGuard: true } });
+  useSessionStore.getState().setQueuedMessages(serverId, new Map([
+    ["agent", [{ id: "existing", text: "first", attachments: [] }]],
+  ]));
+  let acknowledge!: () => void;
+  fakeClient.completionInputResponse = new Promise<void>((resolve) => { acknowledge = resolve; });
+  let prepared = false;
+  const preparing = store.prepareQueuedAgentMessage(serverId, "agent").then(() => { prepared = true; });
+  expect(fakeClient.completionInputUpdates).toEqual([
+    ["agent", { pendingMessageCount: 2, intent: "queue" }],
+  ]);
+  await Promise.resolve();
+  expect(prepared).toBe(false);
+  acknowledge();
+  await preparing;
+  expect(prepared).toBe(true);
+});
+
+it("retries failed restored-queue mirror once and stops after repeated refusal", async () => {
+  const host = makeHost({ serverId: "mirror-retry" });
+  const fakeClient = new FakeDaemonClient();
+  fakeClient.completionGuard = true;
+  fakeClient.setConnectionState({ status: "connected" });
+  const store = new HostRuntimeStore({ deps: {
+    createClient: () => fakeClient as unknown as DaemonClient,
+    connectToDaemon: async () => ({ client: fakeClient as unknown as DaemonClient, serverId: host.serverId, hostname: null }),
+    getClientId: async () => "mirror-test",
+  } });
+  store.syncHosts([host]);
+  await waitForHostOnline(store, host.serverId);
+  fakeClient.completionInputFailures.push(new Error("mirror rejected"), new Error("mirror rejected"));
+  const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+  useSessionStore.getState().setQueuedMessages(host.serverId, new Map([
+    ["agent", [{ id: "restored", text: "user input", attachments: [] }]],
+  ]));
+  await vi.waitFor(() => expect(fakeClient.cancelledCompletionAgents).toEqual(["agent"]));
+  expect(fakeClient.completionInputUpdates).toEqual([
+    ["agent", { pendingMessageCount: 1 }], ["agent", { pendingMessageCount: 1 }],
+  ]);
+  useSessionStore.getState().setQueuedMessages(host.serverId, (queue) => new Map(queue));
+  await Promise.resolve();
+  expect(fakeClient.completionInputUpdates).toHaveLength(2);
+  store.syncHosts([]);
+  errorLog.mockRestore();
 });

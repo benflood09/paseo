@@ -7100,3 +7100,96 @@ test("reviewed plugin updates gate before requests and preserve exact proposal d
     ]);
   }
 });
+
+test("completion guard reserves new input before send and keeps reservation through queue sync", async () => {
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test", clientId: "completion-test", transportFactory: () => mock.transport,
+    reconnect: { enabled: false },
+  });
+  clients.push(client);
+  const connecting = client.connect();
+  mock.triggerOpen({ features: { completionGuard: true } });
+  await connecting;
+  const sending = client.sendAgentMessage("agent", "new user input");
+  const reservation = parseSentFrame(mock.sent[0]);
+  expect(reservation).toMatchObject({
+    type: "completion.input_state.request", intent: "message", pendingMessageCount: 1,
+    stopped: false, clientId: "completion-test",
+  });
+  expect(mock.sent).toHaveLength(1);
+  const queueSync = client.updateCompletionInputState("agent", { pendingMessageCount: 2 });
+  const sync = parseSentFrame(mock.sent[1]);
+  expect(sync).toMatchObject({ type: "completion.input_state.request", pendingMessageCount: 3 });
+  mock.triggerMessage(wrapSessionMessage({ type: "completion.input_state.response", payload: {
+    requestId: reservation.requestId, agentId: "agent", success: true, error: null,
+  } }));
+  await vi.waitFor(() => expect(mock.sent).toHaveLength(3));
+  const message = parseSentFrame(mock.sent[2]);
+  expect(message.type).toBe("send_agent_message_request");
+  mock.triggerMessage(wrapSessionMessage({ type: "completion.input_state.response", payload: {
+    requestId: sync.requestId, agentId: "agent", success: true, error: null,
+  } }));
+  await queueSync;
+  mock.triggerMessage(wrapSessionMessage({ type: "send_agent_message_response", payload: {
+    requestId: message.requestId, agentId: "agent", messageId: message.messageId,
+    accepted: true, error: null,
+  } }));
+  await vi.waitFor(() => expect(mock.sent).toHaveLength(4));
+  const settlement = parseSentFrame(mock.sent[3]);
+  expect(settlement).toMatchObject({ type: "completion.input_state.request", pendingMessageCount: 2, intent: "sync" });
+  mock.triggerMessage(wrapSessionMessage({ type: "completion.input_state.response", payload: {
+    requestId: settlement.requestId, agentId: "agent", success: true, error: null,
+  } }));
+  await sending;
+});
+
+test("completion guard failure refuses new send before provider dispatch", async () => {
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test", clientId: "completion-refused", transportFactory: () => mock.transport,
+    reconnect: { enabled: false },
+  });
+  clients.push(client);
+  const connecting = client.connect();
+  mock.triggerOpen({ features: { completionGuard: true } });
+  await connecting;
+  const sending = client.sendAgentMessage("agent", "new input");
+  const rejected = expect(sending).rejects.toThrow("stale epoch");
+  const request = parseSentFrame(mock.sent[0]);
+  mock.triggerMessage(wrapSessionMessage({ type: "completion.input_state.response", payload: {
+    requestId: request.requestId, agentId: "agent", success: false, error: "stale epoch",
+  } }));
+  await vi.waitFor(() => expect(mock.sent).toHaveLength(2));
+  const settlement = parseSentFrame(mock.sent[1]);
+  expect(settlement).toMatchObject({ type: "completion.input_state.request", intent: "stop", stopped: true });
+  mock.triggerMessage(wrapSessionMessage({ type: "completion.input_state.response", payload: {
+    requestId: settlement.requestId, agentId: "agent", success: true, error: null,
+  } }));
+  await rejected;
+  expect(mock.sent.map(parseSentFrame).map((frame) => frame.type)).not.toContain("send_agent_message_request");
+});
+
+test("stop sends native cancellation immediately even when completion mirror rejects", async () => {
+  const mock = createMockTransport();
+  const client = new DaemonClient({
+    url: "ws://test", clientId: "stop-barrier", transportFactory: () => mock.transport,
+    reconnect: { enabled: false }, logger: createMockLogger(),
+  });
+  clients.push(client);
+  const connecting = client.connect();
+  mock.triggerOpen({ features: { completionGuard: true } });
+  await connecting;
+  const cancellation = client.cancelAgent("agent");
+  expect(mock.sent).toHaveLength(2);
+  const mirror = parseSentFrame(mock.sent[0]);
+  const stop = parseSentFrame(mock.sent[1]);
+  expect(stop).toMatchObject({ type: "cancel_agent_request", agentId: "agent" });
+  mock.triggerMessage(wrapSessionMessage({ type: "completion.input_state.response", payload: {
+    requestId: mirror.requestId, agentId: "agent", success: false, error: "stale epoch",
+  } }));
+  mock.triggerMessage(wrapSessionMessage({ type: "cancel_agent_response", payload: {
+    requestId: stop.requestId, agentId: "agent", agent: null, error: null,
+  } }));
+  await expect(cancellation).resolves.toBeUndefined();
+});

@@ -1779,6 +1779,7 @@ export class VoiceAssistantWebSocketServer {
       desktopManaged: this.daemonRuntimeConfig?.desktopManaged === true,
       ...(this.serverCapabilities ? { capabilities: this.serverCapabilities } : {}),
       features: {
+        completionGuard: this.agentManager.completionGuardEnabled,
         usageSources: true,
         ownedSubscriptions: true,
         agentRequestReceipts: true,

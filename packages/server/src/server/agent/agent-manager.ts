@@ -1,4 +1,6 @@
 import { projectTimelineRows } from "./timeline-projection.js";
+import { CompletionAdmission, type CompletionInputState } from "./completion-admission.js";
+import { completionHome, configuredCompletionEvaluator, runCompletionCommand, type CompletionEvaluator } from "./completion-evaluator.js";
 import type { PluginLifecycle } from "../plugins/lifecycle/index.js";
 import { describeHookAgent, publishAgentStream } from "../plugins/lifecycle/index.js";
 import type { PluginSessionOpenRequest } from "@getpaseo/plugin/server";
@@ -317,6 +319,7 @@ export interface CreateAgentOptions {
 }
 
 export interface AgentManagerOptions {
+  completionEvaluator?: CompletionEvaluator;
   pluginLifecycle?: PluginLifecycle;
   clients?: ProviderClientMap;
   providerDefinitions?: ProviderEnabledMap;
@@ -728,6 +731,9 @@ export class AgentManager {
   private readonly sessionEventTails = new Map<string, Promise<void>>();
   private readonly steerEventBarriers = new Map<string, SteerEventBarrier>();
   private readonly foregroundMutationTails = new Map<string, Promise<void>>();
+  private readonly completionAdmissions = new Map<string, CompletionAdmission>();
+  private readonly completionEvaluator: CompletionEvaluator | undefined;
+  private readonly completionContinuations = new Set<string>();
   private readonly runs = new AgentRunState();
   private readonly subscribers = new Set<SubscriptionRecord>();
   private readonly idFactory: () => string;
@@ -758,6 +764,7 @@ export class AgentManager {
   private acceptingAgentRegistrations = true;
 
   constructor(options: AgentManagerOptions) {
+    this.completionEvaluator = options.completionEvaluator ?? configuredCompletionEvaluator();
     this.pluginLifecycle = options.pluginLifecycle;
     this.idFactory = options?.idFactory ?? (() => randomUUID());
     this.registry = options?.registry;
@@ -2305,6 +2312,105 @@ export class AgentManager {
     return result;
   }
 
+  get completionGuardEnabled(): boolean { return this.completionEvaluator !== undefined; }
+
+  private completionAdmission(agentId: string): CompletionAdmission {
+    let admission = this.completionAdmissions.get(agentId);
+    if (!admission) { admission = new CompletionAdmission(); this.completionAdmissions.set(agentId, admission); }
+    return admission;
+  }
+
+  updateCompletionInputState(agentId: string, input: CompletionInputState): void {
+    this.requireAgent(agentId);
+    this.completionAdmission(agentId).update(input);
+    if (!input.stopped && input.pendingMessageCount === 0) this.scheduleTaskCompletion(agentId);
+  }
+
+  invalidateTaskCompletion(agentId: string): void { this.completionAdmission(agentId).invalidate(); }
+
+  private shouldPrepareCompletionPrompt(agent: ActiveManagedAgent): boolean {
+    return Boolean(process.env.SOMA_COMPLETION_EVALUATOR &&
+      (agent.persistence?.sessionId ?? agent.runtimeInfo?.sessionId) &&
+      ["hermes", "deepagents"].includes(agent.provider));
+  }
+
+  private async completionUserPrompt(agent: ActiveManagedAgent, prompt: AgentPromptInput): Promise<AgentPromptInput> {
+    const executable = process.env.SOMA_COMPLETION_EVALUATOR;
+    const sessionId = agent.persistence?.sessionId ?? agent.runtimeInfo?.sessionId;
+    if (!executable || !sessionId || !["hermes", "deepagents"].includes(agent.provider)) return prompt;
+    const hook = await runCompletionCommand(executable, "hook", {
+      session_id: sessionId, cwd: agent.cwd, hook_event_name: "UserPromptSubmit", prompt: typeof prompt === "string" ? prompt : "user input",
+    }, completionHome(agent.cwd));
+    const output = hook.hookSpecificOutput as { additionalContext?: string } | undefined;
+    const home = completionHome(agent.cwd);
+    const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+    const context = `${output?.additionalContext ?? ""}\nSOMA task CLI: SOMA_COMPLETION_HOME=${quote(home)} ${quote(executable)}. Session ID: ${sessionId}. Use this exact session_id and owner:\"paseo\" with begin/update/disposition. Command reads JSON stdin. Register authorized objective and evidence-bearing steps before actionable work. Preserve informational responses by recording informational disposition as directed above.`;
+    return typeof prompt === "string" ? `${context}\n\n${prompt}` : [{ type: "text", text: context }, ...prompt];
+  }
+
+  private scheduleTaskCompletion(agentId: string): void {
+    if (!this.completionEvaluator) return;
+    const task = (async () => {
+      await this.drainSessionEvents(agentId);
+      // Turn streams settle their run token after terminal waiter delivery.
+      await Promise.resolve();
+      const agent = this.agents.get(agentId);
+      if (!agent || !["hermes", "deepagents"].includes(agent.provider)) return;
+      const turnId = this.completionAdmission(agentId).latestCompleted();
+      if (!turnId) return;
+      await this.evaluateTaskCompletion({ agentId, turnId, owner: "paseo" });
+    })().catch(() => { this.logger.error({ agentId }, "Task completion evaluation failed"); });
+    this.trackBackgroundTask(task);
+  }
+
+  async evaluateTaskCompletion(input: {
+    agentId: string; turnId: string; owner: "native" | "paseo";
+    clientId?: string; inputEpoch?: number; signal?: AbortSignal;
+  }): Promise<{ action: "continued" | "allow" | "wait" | "incomplete"; reason: string }> {
+    if (input.owner === "native") return { action: "allow", reason: "Native harness owns completion" };
+    const agent = this.requireSessionAgent(input.agentId);
+    if (!["hermes", "deepagents"].includes(agent.provider)) return { action: "wait", reason: "Provider has no completion owner" };
+    const admission = this.completionAdmission(input.agentId);
+    if (input.clientId && !admission.matches(input.clientId, input.inputEpoch!)) {
+      return { action: "wait", reason: "Completion input state changed" };
+    }
+    if (!this.completionEvaluator) return { action: "wait", reason: "Completion evaluator unavailable" };
+    const idle = () => agent.lifecycle === "idle" && agent.activeTurnId === null &&
+      !agent.activeForegroundTurnId && !this.runs.hasRun(agent.id) && agent.pendingPermissions.size === 0;
+    if (!idle() || input.signal?.aborted) return { action: "wait", reason: "Agent busy, canceled, or awaiting permission" };
+    const reservation = admission.reserve(input.turnId);
+    if (!reservation) return { action: "wait", reason: "Canceled, queued input, or duplicate completion" };
+    const sessionId = agent.persistence?.sessionId ?? agent.runtimeInfo?.sessionId;
+    if (!sessionId) return { action: "wait", reason: "Native provider session identity unavailable" };
+    const abort = () => admission.invalidate();
+    input.signal?.addEventListener("abort", abort, { once: true });
+    try {
+      const decision = await this.completionEvaluator({ session_id: sessionId, event_id: reservation.eventId, owner: "paseo", cwd: agent.cwd });
+      if (!admission.current(reservation.token, input.turnId) || input.signal?.aborted) {
+        return { action: "wait", reason: "User input or cancellation superseded evaluation" };
+      }
+      if (decision.action !== "continue") return { action: decision.action, reason: decision.reason };
+      return await this.runForegroundMutation(agent.id, async () => {
+        await this.drainSessionEvents(agent.id);
+        if (!idle() || !admission.current(reservation.token, input.turnId) || input.signal?.aborted) {
+          return { action: "wait" as const, reason: "User input or cancellation won admission" };
+        }
+        this.completionContinuations.add(agent.id);
+        let stream: AsyncGenerator<AgentStreamEvent>;
+        try { stream = this.streamAgent(agent.id, decision.reason); }
+        finally { this.completionContinuations.delete(agent.id); }
+        // Admit the provider start under the same lock as cancellation, then release the lock.
+        await stream.next();
+        const drain = (async () => { for await (const _event of stream) { /* manager dispatches events */ } })()
+          .catch(() => { this.logger.error({ agentId: agent.id }, "Completion continuation failed"); });
+        this.trackBackgroundTask(drain);
+        return { action: "continued" as const, reason: decision.reason };
+      });
+    } catch {
+      return { action: "incomplete", reason: "Completion evaluator or provider admission failed" };
+    } finally { input.signal?.removeEventListener("abort", abort); }
+  }
+
   async runAgent(
     agentId: string,
     prompt: AgentPromptInput,
@@ -2449,6 +2555,7 @@ export class AgentManager {
         agent.pendingReplacement = false;
         if (!agent.activeForegroundTurnId) agent.lifecycle = "idle";
         this.runs.settleForegroundRun(agentId, pendingRun.token);
+        this.scheduleTaskCompletion(agentId);
         throw error;
       }
       agent.pendingReplacement = false;
@@ -2469,7 +2576,10 @@ export class AgentManager {
     agentId: string,
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
+    completionGenerationPrepared = false,
   ): AsyncGenerator<AgentStreamEvent> {
+    const continuation = this.completionContinuations.has(agentId);
+    this.invalidateTaskCompletion(agentId);
     const existingAgent = this.requireSessionAgent(agentId);
     this.logger.trace(
       {
@@ -2501,6 +2611,7 @@ export class AgentManager {
     }
 
     const agent = existingAgent;
+    if (!continuation) this.completionAdmission(agentId).userInput();
     const isReplacement = agent.pendingReplacement;
     agent.lastError = undefined;
 
@@ -2509,6 +2620,14 @@ export class AgentManager {
     const streamForwarder = async function* streamForwarder(this: AgentManager) {
       let turnId: string;
       let turnStream: ReturnType<AgentRunState["createTurnStream"]> | null = null;
+      if (!continuation && !completionGenerationPrepared && this.shouldPrepareCompletionPrompt(agent)) {
+        try {
+          prompt = await this.completionUserPrompt(agent, prompt);
+        } catch (error) {
+          this.runs.settleForegroundRun(agentId, pendingRun.token);
+          throw error;
+        }
+      }
       turnId = await this.startPendingForegroundTurn({
         agent,
         agentId,
@@ -2667,6 +2786,7 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentRunOptions,
   ): Promise<AsyncGenerator<AgentStreamEvent>> {
+    this.invalidateTaskCompletion(agentId);
     const snapshot = this.requireAgent(agentId);
     if (
       snapshot.lifecycle !== "running" &&
@@ -2699,17 +2819,20 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentSteerOptions,
   ): Promise<SteerResult> {
+    this.invalidateTaskCompletion(agentId);
     const agent = this.requireSessionAgent(agentId);
     const expectedTurnId = agent.activeForegroundTurnId ?? agent.activeTurnId;
     if (!expectedTurnId || !agent.session.steerActiveTurn) {
       return { status: "unavailable" };
     }
+    if (this.shouldPrepareCompletionPrompt(agent)) prompt = await this.completionUserPrompt(agent, prompt);
     const result = await this.runSteerAdmission(agent, expectedTurnId, async () => {
       const admission = await agent.session.steerActiveTurn!(prompt, {
         ...options,
         expectedTurnId,
       });
       if (admission.status === "accepted") {
+        this.completionAdmission(agentId).userInput();
         await this.recordAcceptedSteer(agent, prompt, options?.clientMessageId, expectedTurnId);
       }
       return admission;
@@ -2727,11 +2850,13 @@ export class AgentManager {
     prompt: AgentPromptInput,
     options?: AgentSteerOptions,
   ): Promise<ActiveTurnSteerDispatchResult> {
+    this.invalidateTaskCompletion(agentId);
     const agent = this.requireSessionAgent(agentId);
     const expectedTurnId = agent.activeForegroundTurnId ?? agent.activeTurnId;
     if (!expectedTurnId) {
       return { status: "inactive" };
     }
+    if (this.shouldPrepareCompletionPrompt(agent)) prompt = await this.completionUserPrompt(agent, prompt);
 
     const result = agent.session.steerActiveTurn
       ? await this.runSteerAdmission(agent, expectedTurnId, async () => {
@@ -2740,6 +2865,7 @@ export class AgentManager {
             expectedTurnId,
           });
           if (admission.status === "accepted") {
+            this.completionAdmission(agentId).userInput();
             await this.recordAcceptedSteer(agent, prompt, options?.clientMessageId, expectedTurnId);
           }
           return admission;
@@ -2830,7 +2956,7 @@ export class AgentManager {
 
     try {
       await this.cancelAgentRunBefore(agent.id, "replace");
-      return this.streamAgent(agent.id, prompt, options);
+      return this.streamAgent(agent.id, prompt, options, true);
     } catch (error) {
       const latest = this.agents.get(agent.id);
       if (latest) {
@@ -3009,6 +3135,7 @@ export class AgentManager {
   }
 
   async cancelAgentRun(agentId: string): Promise<AgentRunCancellationResult> {
+    this.completionAdmission(agentId).stop();
     return this.runForegroundMutation(agentId, () => this.cancelAgentRunNow(agentId));
   }
 
@@ -3853,6 +3980,11 @@ export class AgentManager {
 
     if (!shouldNotifyWaiters) {
       return;
+    }
+
+    if ((event.type === "turn_completed" || event.type === "turn_canceled" || event.type === "turn_failed") && turnId) {
+      this.completionAdmission(agent.id).ended(turnId, event.type === "turn_completed");
+      if (event.type === "turn_completed") this.scheduleTaskCompletion(agent.id);
     }
 
     this.runs.notifyWaiters(matchingWaiters, event, {
