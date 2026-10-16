@@ -1,5 +1,6 @@
 import React, { useRef, useState } from "react";
 import { Text, View } from "react-native";
+import { StyleSheet } from "react-native-unistyles";
 import { useQuery } from "@tanstack/react-query";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import { Combobox } from "@/components/ui/combobox";
@@ -61,7 +62,7 @@ export function LocalFolderPicker({
         accessibilityLabel="Workspace folder"
         testID="local-workspace-folder-trigger"
       >
-        <Text>{value || "Choose existing workspace folder"}</Text>
+        <Text style={styles.label}>{value || "Choose existing workspace folder"}</Text>
       </ComboboxTrigger>
       <Combobox
         options={listing.isFetching ? [] : options}
@@ -95,3 +96,11 @@ export function LocalFolderPicker({
     </View>
   );
 }
+
+const styles = StyleSheet.create((theme) => ({
+  label: {
+    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    flexShrink: 1,
+  },
+}));
