@@ -1,14 +1,10 @@
 import { generateDraftId } from "@/stores/draft-keys";
-import {
-  buildWorkspaceTabPersistenceKey,
-  type WorkspaceTabTarget,
-} from "@/workspace-tabs/model";
+import { buildWorkspaceTabPersistenceKey, type WorkspaceTabTarget } from "@/workspace-tabs/model";
 import type { WorkspaceTabPlacement } from "@/stores/workspace-layout-actions";
 
 export interface PrepareWorkspaceTabInput {
   serverId: string;
   workspaceId: string;
-  tabScopeKey?: string | null;
   target: WorkspaceTabTarget;
   pin?: boolean;
   placement?: WorkspaceTabPlacement;
@@ -24,34 +20,23 @@ export interface PrepareWorkspaceTabDeps {
   }) => string | null;
 }
 
-function getPreparedTarget(
-  target: WorkspaceTabTarget,
-  workspaceId: string,
-  projectScoped: boolean
-): WorkspaceTabTarget {
-  const contextualTarget =
-    !projectScoped || target.kind === "setup" || target.workspaceId?.trim()
-      ? target
-      : { ...target, workspaceId };
-  if (
-    contextualTarget.kind !== "draft" ||
-    contextualTarget.draftId.trim() !== "new"
-  ) {
-    return contextualTarget;
+function getPreparedTarget(target: WorkspaceTabTarget): WorkspaceTabTarget {
+  if (target.kind !== "draft" || target.draftId.trim() !== "new") {
+    return target;
   }
-  return { ...contextualTarget, draftId: generateDraftId() };
+  return { kind: "draft", draftId: generateDraftId() };
 }
 
 export function prepareWorkspaceTab(
   input: PrepareWorkspaceTabInput,
-  deps: PrepareWorkspaceTabDeps
+  deps: PrepareWorkspaceTabDeps,
 ): void {
-  const workspaceKey = buildWorkspaceTabPersistenceKey({
-    serverId: input.serverId,
-    workspaceId: input.workspaceId,
-  }) ?? "";
-  const key = input.tabScopeKey ?? workspaceKey;
-  const target = getPreparedTarget(input.target, input.workspaceId, key !== workspaceKey);
+  const target = getPreparedTarget(input.target);
+  const key =
+    buildWorkspaceTabPersistenceKey({
+      serverId: input.serverId,
+      workspaceId: input.workspaceId,
+    }) ?? "";
 
   deps.openTab({
     workspaceKey: key,

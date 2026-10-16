@@ -1819,47 +1819,6 @@ export const RefreshAgentRequestMessageSchema = z.object({
   requestId: z.string(),
 });
 
-export const CompletionInputStateRequestSchema = z.object({
-  type: z.literal("completion.input_state.request"),
-  intent: z.enum(["sync", "message", "stop", "queue"]).optional(),
-  requestId: z.string(),
-  agentId: z.string(),
-  clientId: z.string(),
-  inputEpoch: z.number().int().nonnegative(),
-  pendingMessageCount: z.number().int().nonnegative(),
-  stopped: z.boolean(),
-});
-
-export const CompletionEvaluateRequestSchema = z.object({
-  type: z.literal("completion.evaluate.request"),
-  requestId: z.string(),
-  agentId: z.string(),
-  clientId: z.string(),
-  turnId: z.string(),
-  owner: z.enum(["native", "paseo"]),
-  inputEpoch: z.number().int().nonnegative(),
-});
-
-export const CompletionInputStateResponseSchema = z.object({
-  type: z.literal("completion.input_state.response"),
-  payload: z.object({
-    requestId: z.string(),
-    agentId: z.string(),
-    success: z.boolean(),
-    error: z.string().nullable(),
-  }),
-});
-
-export const CompletionEvaluateResponseSchema = z.object({
-  type: z.literal("completion.evaluate.response"),
-  payload: z.object({
-    requestId: z.string(),
-    agentId: z.string(),
-    action: z.enum(["continued", "allow", "wait", "incomplete"]),
-    reason: z.string(),
-  }),
-});
-
 export const CancelAgentRequestMessageSchema = z.object({
   type: z.literal("cancel_agent_request"),
   agentId: z.string(),
@@ -3246,8 +3205,6 @@ export const SessionInboundMessageSchema = z.discriminatedUnion("type", [
   WorkspaceRecoveryRestoreRequestSchema,
   SetVoiceModeMessageSchema,
   SendAgentMessageRequestSchema,
-  CompletionInputStateRequestSchema,
-  CompletionEvaluateRequestSchema,
   WaitForFinishRequestSchema,
   DaemonGetStatusRequestSchema,
   DaemonGetPairingOfferRequestSchema,
@@ -3595,7 +3552,6 @@ export const ServerInfoStatusPayloadSchema = z
         // COMPAT(workspaceRequestReceipts): added in v0.8.0; remove gate after 2027-03-07.
         workspaceRequestReceipts: z.boolean().optional(),
         creationLifecycle: z.boolean().optional(),
-        completionGuard: z.boolean().optional(),
         // COMPAT(hubAgentRpc): added in v0.8.0; remove gate after 2027-03-05.
         hubAgentRpc: z.boolean().optional(),
         providersSnapshot: z.boolean().optional(),
@@ -6944,8 +6900,6 @@ export const SessionOutboundMessageSchema = z.discriminatedUnion("type", [
   AgentAttentionRequiredMessageSchema,
   AgentForkContextResponseMessageSchema,
   CancelAgentResponseMessageSchema,
-  CompletionInputStateResponseSchema,
-  CompletionEvaluateResponseSchema,
   ClearAgentAttentionResponseMessageSchema,
   WorkspaceCreateResponseSchema,
   AgentCreateResponseSchema,

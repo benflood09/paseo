@@ -267,11 +267,10 @@ export interface WorkspaceTabReconcileState {
 }
 
 export interface WorkspaceTabSnapshot {
-  workspaceId?: string | null;
   agentsHydrated: boolean;
   terminalsHydrated: boolean;
   activeAgentIds: Iterable<string>;
-  autoOpenAgentIds?: Iterable<string>;
+  autoOpenAgentIds: Iterable<string>;
   knownTerminalIds?: Iterable<string>;
   standaloneTerminalIds: Iterable<string>;
   hasActivePendingTerminalCreate?: boolean;
@@ -2342,18 +2341,8 @@ function collapseStaleEntityTabs(input: {
   explorerSidebarPaneId: string | null;
 }): WorkspaceLayout {
   const { snapshot, visibleAgentIds, knownTerminalIds } = input;
-  const snapshotWorkspaceId = trimNonEmpty(snapshot.workspaceId);
   let nextLayout = input.layout;
   for (const tab of collectAllTabs(nextLayout.root)) {
-    // A project layout can contain tabs from several workspaces. This snapshot
-    // only proves whether entities in its own workspace still exist.
-    if (
-      snapshotWorkspaceId &&
-      tab.target.workspaceId &&
-      tab.target.workspaceId !== snapshotWorkspaceId
-    ) {
-      continue;
-    }
     if (isAgentTab(tab) && snapshot.agentsHydrated && !visibleAgentIds.has(tab.target.agentId)) {
       nextLayout =
         closeTabInLayout({
@@ -2380,7 +2369,6 @@ function collapseStaleEntityTabs(input: {
 
 function addMissingEntityTabs(input: {
   layout: WorkspaceLayout;
-  workspaceId: string | null;
   autoOpenAgentIds: Set<string>;
   representedAgentIds: Set<string>;
   standaloneTerminalIds: Set<string>;
@@ -2389,7 +2377,6 @@ function addMissingEntityTabs(input: {
   explorerSidebarPaneId: string | null;
 }): WorkspaceLayout {
   const {
-    workspaceId,
     autoOpenAgentIds,
     representedAgentIds,
     standaloneTerminalIds,
@@ -2416,7 +2403,7 @@ function addMissingEntityTabs(input: {
     }
     nextLayout = openEntityTabWithoutFocusing({
       layout: nextLayout,
-      target: { kind: "agent", agentId, ...(workspaceId ? { workspaceId } : {}) },
+      target: { kind: "agent", agentId },
       explorerSidebarPaneId,
     });
     currentAgentIds.add(agentId);
@@ -2430,7 +2417,7 @@ function addMissingEntityTabs(input: {
       }
       nextLayout = openEntityTabWithoutFocusing({
         layout: nextLayout,
-        target: { kind: "terminal", terminalId, ...(workspaceId ? { workspaceId } : {}) },
+        target: { kind: "terminal", terminalId },
         explorerSidebarPaneId,
       });
       currentTerminalIds.add(terminalId);
@@ -2449,7 +2436,7 @@ export function reconcileWorkspaceTabs(
   let reconciledFocusedTabId = originalFocusedTabId;
   const hiddenAgentIds = new Set(state.hiddenAgentIds ?? []);
   const activeAgentIds = normalizeStringSet(snapshot.activeAgentIds);
-  const autoOpenAgentIds = normalizeStringSet(snapshot.autoOpenAgentIds ?? []);
+  const autoOpenAgentIds = normalizeStringSet(snapshot.autoOpenAgentIds);
   // An explicit open owns the tab until the agent joins the active directory.
   // From then on it follows the normal server archive lifecycle. Detail/cache
   // hydration never decides whether the user's target is allowed to stay open.
@@ -2522,7 +2509,6 @@ export function reconcileWorkspaceTabs(
 
   nextLayout = addMissingEntityTabs({
     layout: nextLayout,
-    workspaceId: trimNonEmpty(snapshot.workspaceId),
     autoOpenAgentIds: autoOpenSet,
     representedAgentIds,
     standaloneTerminalIds,

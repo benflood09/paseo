@@ -12,7 +12,7 @@ describe("New tab identity", () => {
     expect(normalizeWorkspaceTabTarget(target)).toEqual(target);
     expect(workspaceTabTargetsEqual(target, target)).toBe(false);
     expect(() => buildDeterministicWorkspaceTabId(target)).toThrow(
-      "New tabs do not have deterministic target identities"
+      "New tabs do not have deterministic target identities",
     );
   });
 });
@@ -36,7 +36,7 @@ describe("provider subagent tab identity", () => {
           kind: "provider_subagent",
           parentAgentId: "parent-a",
           subagentId: "child-a",
-        })
+        }),
     ).toBe(true);
   });
 
@@ -68,18 +68,14 @@ describe("working diff tab identity", () => {
       normalizeWorkspaceTabTarget({
         ...target,
         focusPath: " src\\example.ts ",
-      })
+      }),
     ).toEqual(target);
   });
 
   it("treats focus as navigation state rather than tab identity", () => {
     expect(workspaceTabTargetsEqual(target, target)).toBe(true);
-    expect(
-      workspaceTabTargetsEqual(target, { ...target, focusPath: "src/other.ts" })
-    ).toBe(false);
-    expect(
-      workspaceTabTargetsEqual(target, { ...target, focusRequestId: 2 })
-    ).toBe(false);
+    expect(workspaceTabTargetsEqual(target, { ...target, focusPath: "src/other.ts" })).toBe(false);
+    expect(workspaceTabTargetsEqual(target, { ...target, focusRequestId: 2 })).toBe(false);
     const workingDiffId = buildDeterministicWorkspaceTabId(target);
     const otherFocusId = buildDeterministicWorkspaceTabId({
       ...target,
@@ -97,15 +93,6 @@ describe("working diff tab identity", () => {
 });
 
 describe("workspace utility panel identity", () => {
-  it("keeps utility tabs from sibling workspaces distinct inside one project layout", () => {
-    const first = { kind: "files", workspaceId: "workspace-a" } as const;
-    const second = { kind: "files", workspaceId: "workspace-b" } as const;
-    expect(workspaceTabTargetsEqual(first, second)).toBe(false);
-    expect(buildDeterministicWorkspaceTabId(first)).not.toBe(
-      buildDeterministicWorkspaceTabId(second)
-    );
-    expect(normalizeWorkspaceTabTarget(first)).toEqual(first);
-  });
   it.each(["files", "pull_request"] as const)(
     "normalizes and deterministically keys %s",
     (kind) => {
@@ -114,22 +101,19 @@ describe("workspace utility panel identity", () => {
       expect(normalizeWorkspaceTabTarget(target)).toEqual(target);
       expect(buildDeterministicWorkspaceTabId(target)).toBe(kind);
       expect(workspaceTabTargetsEqual(target, target)).toBe(true);
-    }
+    },
   );
 });
 
 describe("commit diff tab identity", () => {
   it("keys a commit diff tab by its sha", () => {
-    expect(
-      buildDeterministicWorkspaceTabId({ kind: "commit_diff", sha: "abc123" })
-    ).toBe("commit_diff_abc123");
+    expect(buildDeterministicWorkspaceTabId({ kind: "commit_diff", sha: "abc123" })).toBe(
+      "commit_diff_abc123",
+    );
   });
 
   it("does not collide a commit diff tab id with a file tab id", () => {
-    const diffId = buildDeterministicWorkspaceTabId({
-      kind: "commit_diff",
-      sha: "abc123",
-    });
+    const diffId = buildDeterministicWorkspaceTabId({ kind: "commit_diff", sha: "abc123" });
     const fileId = buildDeterministicWorkspaceTabId({
       kind: "file",
       path: "abc123",
@@ -141,8 +125,8 @@ describe("commit diff tab identity", () => {
     expect(
       workspaceTabTargetsEqual(
         { kind: "commit_diff", sha: "abc123" },
-        { kind: "commit_diff", sha: "abc123" }
-      )
+        { kind: "commit_diff", sha: "abc123" },
+      ),
     ).toBe(true);
   });
 
@@ -150,8 +134,8 @@ describe("commit diff tab identity", () => {
     expect(
       workspaceTabTargetsEqual(
         { kind: "commit_diff", sha: "abc123" },
-        { kind: "commit_diff", sha: "def456" }
-      )
+        { kind: "commit_diff", sha: "def456" },
+      ),
     ).toBe(false);
   });
 
@@ -160,7 +144,7 @@ describe("commit diff tab identity", () => {
       normalizeWorkspaceTabTarget({
         kind: "commit_diff",
         sha: "abc123",
-      })
+      }),
     ).toEqual({ kind: "commit_diff", sha: "abc123" });
   });
 
@@ -169,7 +153,7 @@ describe("commit diff tab identity", () => {
       normalizeWorkspaceTabTarget({
         kind: "commit_diff",
         sha: "   ",
-      })
+      }),
     ).toBeNull();
   });
 });
@@ -183,7 +167,7 @@ describe("plugin panel tab identity", () => {
         panelId: " details ",
         context: "agent",
         agentId: " agent-1 ",
-      })
+      }),
     ).toEqual({
       kind: "plugin",
       pluginId: "review",
