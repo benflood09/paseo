@@ -43,9 +43,21 @@ vi.mock("@/stores/session-store", () => ({ useSessionStore: () => false }));
 vi.mock("@/stores/navigation-active-workspace-store", () => ({ navigateToWorkspace: vi.fn() }));
 vi.mock("@/utils/navigate-to-agent", () => ({ navigateToAgent: vi.fn() }));
 vi.mock("@/components/provider-icons", () => ({ getProviderIcon: () => () => null }));
+const iconMap = new Map<string, string | null>();
+vi.mock("@/projects/icons", () => ({ useProjectIcons: () => iconMap }));
+vi.mock("@/components/project-icon-view", () => ({
+  ProjectIconView: ({ iconDataUri, initial, projectViewKey }: { iconDataUri: string | null; initial: string; projectViewKey: string }) =>
+    React.createElement("span", { "data-testid": `project-icon:${projectViewKey}`, "data-icon": iconDataUri }, initial),
+}));
 vi.mock("@/hooks/use-is-local-daemon", () => ({ useLocalDaemonServerId: () => "mac" }));
 vi.mock("@/utils/sidebar-project-row-model", () => ({
   resolveSidebarProjectLocalPath: () => "/repo",
+  resolveSidebarProjectIconTargets: (projects: SidebarProjectEntry[]) =>
+    projects.flatMap((item) =>
+      item.hosts[0]?.projectId
+        ? [{ projectViewKey: item.viewKey, serverId: "mac", projectId: item.hosts[0].projectId, iconWorkingDir: "/repo" }]
+        : [],
+    ),
 }));
 vi.mock("@/components/sidebar/use-remove-sidebar-project", () => ({
   useRemoveSidebarProject: () => ({ handleRemoveProject: vi.fn(), isRemovingProject: false }),
@@ -93,6 +105,10 @@ it("shows actions only for stored Threads projects", () => {
     hosts: [{ ...project.hosts[0]!, projectId: "" }],
   };
   act(() => root.render(<SidebarThreadList projects={[project, synthetic]} />));
+  iconMap.set("stored", "data:image/png;base64,abc");
+  act(() => root.render(<SidebarThreadList projects={[project, synthetic]} />));
+  expect(container.querySelector('[data-testid="project-icon:stored"]')?.getAttribute("data-icon")).toBe("data:image/png;base64,abc");
+  expect(container.querySelector('[data-testid="project-icon:thread:orphan"]')?.getAttribute("data-icon")).toBeNull();
   expect(container.querySelector('[data-testid="sidebar-project-kebab-stored"]')).not.toBeNull();
   expect(container.querySelector('[data-testid="sidebar-project-kebab-thread:orphan"]')).toBeNull();
   act(() => root.unmount());

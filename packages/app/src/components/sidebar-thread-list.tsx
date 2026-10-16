@@ -14,7 +14,12 @@ import { getProviderIcon } from "@/components/provider-icons";
 import { ProjectKebabMenu } from "@/components/sidebar-workspace-list";
 import { useRemoveSidebarProject } from "@/components/sidebar/use-remove-sidebar-project";
 import { useLocalDaemonServerId } from "@/hooks/use-is-local-daemon";
-import { resolveSidebarProjectLocalPath } from "@/utils/sidebar-project-row-model";
+import {
+  resolveSidebarProjectIconTargets,
+  resolveSidebarProjectLocalPath,
+} from "@/utils/sidebar-project-row-model";
+import { useProjectIcons } from "@/projects/icons";
+import { ProjectIconView } from "@/components/project-icon-view";
 import { hasActiveSidebarLabelFilter, useSidebarViewStore } from "@/stores/sidebar-view-store";
 import {
   DropdownMenu,
@@ -59,6 +64,8 @@ export function SidebarThreadList({
       }),
     [projects, agents, hostFilters, hasActiveProjectFilter, hasActiveLabelFilter],
   );
+  const projectIconTargets = useMemo(() => resolveSidebarProjectIconTargets(projects), [projects]);
+  const projectIconByProjectViewKey = useProjectIcons({ projects: projectIconTargets });
   return (
     <ScrollView
       testID="sidebar-thread-list"
@@ -70,6 +77,7 @@ export function SidebarThreadList({
         <SidebarThreadProjectRow
           key={group.project.viewKey}
           group={group}
+          iconDataUri={projectIconByProjectViewKey.get(group.project.viewKey) ?? null}
           onThreadPress={onThreadPress}
         />
       ))}
@@ -79,9 +87,11 @@ export function SidebarThreadList({
 
 function SidebarThreadProjectRow({
   group,
+  iconDataUri,
   onThreadPress,
 }: {
   group: SidebarThreadProject;
+  iconDataUri: string | null;
   onThreadPress?: () => void;
 }) {
   const { project, agents } = group;
@@ -124,6 +134,13 @@ function SidebarThreadProjectRow({
           ) : (
             <ThemedChevronDown size={15} uniProps={mutedIconColor} />
           )}
+          <ProjectIconView
+            iconDataUri={iconDataUri}
+            initial={project.projectName.slice(0, 1).toUpperCase()}
+            projectViewKey={project.viewKey}
+            size={20}
+            textStyle={styles.projectIconInitial}
+          />
           <Text numberOfLines={1} style={styles.projectTitle}>
             {project.projectName}
           </Text>
@@ -290,6 +307,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   projectTitleButton: { flex: 1, flexDirection: "row", alignItems: "center", gap: 7, minWidth: 0 },
   projectTitle: { flexShrink: 1, fontSize: 13, fontWeight: "600", color: theme.colors.foreground },
+  projectIconInitial: { fontSize: 11, fontWeight: "600" },
   count: { fontSize: 11, color: theme.colors.foregroundMuted },
   threadRow: {
     flexDirection: "row",
