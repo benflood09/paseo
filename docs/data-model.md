@@ -34,6 +34,16 @@ Paseo uses **file-based JSON persistence** instead of a traditional database. Al
 
 All server-side stores live under `$PASEO_HOME` (defaults to `~/.paseo`).
 
+New Workspace Local creation requires an explicitly selected existing subfolder of the selected
+project. The picker browses existing directories without creating folders. For
+`workspace.create.request` directory sources carrying `projectId`, the server requires an active
+project, an existing directory, and strict descendant containment both lexically and after
+resolving symlinks. Project-root and outside-project selections are rejected. This restriction
+applies only to that explicit creation route: legacy directory requests without `projectId`,
+imports, directory opens, restore, and managed worktree provisioning retain their existing
+membership behavior. Existing root workspaces are unchanged. Workspace records remain independent;
+multiple creates for the same directory can still allocate separate records.
+
 ## Store Surface Rules
 
 Store APIs own persistence atomicity and should not make services coordinate raw reads and writes. A good store method maps cleanly to one SQL statement or one SQL transaction, even when the current implementation is JSON files. If a caller needs a queue, lock, read-merge-write loop, or uniqueness race workaround, that behavior belongs behind the store surface.

@@ -15,6 +15,7 @@ import equal from "fast-deep-equal";
 import { SessionDelivery, type OwnedSubscription } from "./session/owned-subscriptions/index.js";
 import { v4 as uuidv4 } from "uuid";
 import { lstat, mkdir, mkdtemp, rename, rm, stat } from "node:fs/promises";
+import { validateLocalWorkspaceDirectory } from "./local-workspace-directory.js";
 import { basename, resolve, sep } from "path";
 import { homedir } from "node:os";
 import { CLIENT_CAPS, type ClientCapability } from "@getpaseo/protocol/client-capabilities";
@@ -6662,6 +6663,23 @@ export class Session {
     }
 
     const cwd = expandTilde(request.source.path);
+    if (request.source.projectId) {
+      const project = await this.projectRegistry.get(request.source.projectId);
+      if (!project) {
+        throw new SessionRequestError("unknown_project", "Selected project is unavailable");
+      }
+      if (project.archivedAt) {
+        throw new SessionRequestError("archived_project", "Selected project is archived");
+      }
+      try {
+        await validateLocalWorkspaceDirectory(project.rootPath, cwd);
+      } catch (error) {
+        throw new SessionRequestError(
+          "invalid_workspace_directory",
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
     const directoryExists = await this.filesystem.isDirectory(cwd).catch(() => false);
     if (!directoryExists) {
       throw new SessionRequestError("directory_not_found", `Directory not found: ${cwd}`);

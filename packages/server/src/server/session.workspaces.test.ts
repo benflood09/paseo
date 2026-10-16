@@ -15,7 +15,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { setImmediate as waitForImmediate } from "node:timers/promises";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, expect, onTestFinished, test, vi } from "vitest";
 import { z } from "zod";
 
 import { CLIENT_CAPS } from "@getpaseo/protocol/client-capabilities";
@@ -9470,13 +9470,17 @@ test("workspace create stays out of a non-matching workspace subscription", asyn
 });
 
 test("workspace.create.request attaches a directory workspace to its explicit active project", async () => {
+  const projectRoot = mkdtempSync(path.join(tmpdir(), "explicit-local-workspace-"));
+  const child = path.join(projectRoot, "existing");
+  mkdirSync(child);
+  onTestFinished(() => rmSync(projectRoot, { recursive: true, force: true }));
   const emitted: SessionOutboundMessage[] = [];
   const projects = new Map([
     [
       "prj_explicit",
       createPersistedProjectRecord({
         projectId: "prj_explicit",
-        rootPath: path.join(REPO_CWD, "unrelated"),
+        rootPath: projectRoot,
         kind: "non_git",
         displayName: "unrelated",
         createdAt: "2026-03-01T00:00:00.000Z",
@@ -9497,7 +9501,7 @@ test("workspace.create.request attaches a directory workspace to its explicit ac
   await session.handleMessage({
     type: "workspace.create.request",
     requestId: "req-explicit-project",
-    source: { kind: "directory", path: REPO_CWD, projectId: "prj_explicit" },
+    source: { kind: "directory", path: child, projectId: "prj_explicit" },
   });
 
   const response = findByType(emitted, "workspace.create.response");
@@ -9509,9 +9513,21 @@ test("workspace.create.request attaches a directory workspace to its explicit ac
   const workspaceId = response?.payload.workspace?.id;
   expect(workspaceId).toEqual(expect.any(String));
   expect(workspaces.get(workspaceId as string)).toMatchObject({
-    cwd: REPO_CWD,
+    cwd: child,
     projectId: "prj_explicit",
   });
+
+  emitted.length = 0;
+  await session.handleMessage({
+    type: "workspace.create.request",
+    requestId: "req-explicit-root",
+    source: { kind: "directory", path: projectRoot, projectId: "prj_explicit" },
+  });
+  expect(findByType(emitted, "workspace.create.response")?.payload).toMatchObject({
+    workspace: null,
+    errorCode: "invalid_workspace_directory",
+  });
+  expect(workspaces.size).toBe(1);
 });
 
 test("workspace.create.request reports an unknown explicit project", async () => {

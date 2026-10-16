@@ -16,6 +16,7 @@ import { createNameId } from "mnemonic-id";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Folder, FolderPlus, GitBranch, GitPullRequest } from "lucide-react-native";
 import { Composer } from "@/composer";
+import { LocalFolderPicker } from "./new-workspace/local-folder-picker";
 import { ComposerDock } from "@/composer/dock";
 import { FileDropZone } from "@/components/file-drop/file-drop-zone";
 import {
@@ -1804,6 +1805,16 @@ export function NewWorkspaceScreen({
   }, [selectedServerId, t]);
 
   const clientReady = isConnected && Boolean(client);
+  const [localFolderSelection, setLocalFolderSelection] = useState<{
+    root: string;
+    serverId: string;
+    path: string;
+  } | null>(null);
+  const localFolder =
+    localFolderSelection?.root === selectedSourceDirectory &&
+    localFolderSelection?.serverId === selectedServerId
+      ? localFolderSelection.path
+      : "";
   const hasSelectedSourceDirectory = selectedSourceDirectory !== null;
   const pickerQueryEnabled = pickerOpen && clientReady && hasSelectedSourceDirectory;
 
@@ -2055,6 +2066,9 @@ export function NewWorkspaceScreen({
       }
       const connectedClient = withConnectedClient();
       const createsWorktree = !supportsWorkspaceMultiplicity || effectiveIsolation === "worktree";
+      if (!createsWorktree && !localFolder) {
+        throw new Error("Choose an existing workspace folder");
+      }
       const checkoutStatusForCreate = createsWorktree
         ? await ensureCheckoutStatus({
             queryClient,
@@ -2074,7 +2088,9 @@ export function NewWorkspaceScreen({
         client: connectedClient,
         isolation: createsWorktree ? "worktree" : "local",
         project: selectedProject,
-        sourceDirectory: selectedSourceDirectory,
+        sourceDirectory: createsWorktree
+          ? selectedSourceDirectory
+          : `${selectedSourceDirectory}/${localFolder}`,
         checkoutRequest,
         withInitialAgent: input.withInitialAgent,
         prompt: input.prompt,
@@ -2092,6 +2108,7 @@ export function NewWorkspaceScreen({
       creationIdentity,
       creationResult,
       effectiveIsolation,
+      localFolder,
       mergeWorkspaces,
       queryClient,
       selectedItem,
@@ -2385,6 +2402,9 @@ export function NewWorkspaceScreen({
       allowEmptySubmit={true}
       submitButtonAccessibilityLabel={t("newWorkspace.launch.submit")}
       submitButtonTestID="new-workspace-launch-submit"
+      submitDisabled={
+        supportsWorkspaceMultiplicity && effectiveIsolation === "local" && !localFolder
+      }
       isSubmitLoading={isPending}
       submitBehavior="preserve-and-lock"
       blurOnSubmit={true}
@@ -2408,6 +2428,9 @@ export function NewWorkspaceScreen({
       allowEmptySubmit={true}
       submitButtonAccessibilityLabel={t("newWorkspace.create")}
       submitButtonTestID="workspace-create-submit"
+      submitDisabled={
+        supportsWorkspaceMultiplicity && effectiveIsolation === "local" && !localFolder
+      }
       submitIcon="return"
       isSubmitLoading={isPending}
       waitForForgeAutoAttachOnSubmit
@@ -2437,7 +2460,31 @@ export function NewWorkspaceScreen({
         <NewWorkspaceLayout
           isCompact={isCompact}
           title={t("newWorkspace.title")}
-          formStack={formStack}
+          formStack={
+            <>
+              {formStack}
+              {supportsWorkspaceMultiplicity &&
+              effectiveIsolation === "local" &&
+              selectedSourceDirectory &&
+              client ? (
+                <LocalFolderPicker
+                  key={`${selectedServerId}:${selectedSourceDirectory}`}
+                  client={client}
+                  serverId={selectedServerId}
+                  root={selectedSourceDirectory}
+                  value={localFolder}
+                  disabled={isPending || !clientReady}
+                  onSelect={(path) =>
+                    setLocalFolderSelection({
+                      root: selectedSourceDirectory,
+                      serverId: selectedServerId,
+                      path,
+                    })
+                  }
+                />
+              ) : null}
+            </>
+          }
           onImportSession={importSession.open}
         >
           {composer}
