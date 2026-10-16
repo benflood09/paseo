@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,6 +17,16 @@ const mocks = vi.hoisted(() => ({
   },
   runExternalCliJsonCommand: vi.fn(),
   runExternalCliTextCommand: vi.fn(),
+  readDaemonInstance: vi.fn(async (home: string) => {
+    const lockPath = path.join(home, "paseo.pid");
+    if (!existsSync(lockPath)) return null;
+    const lock = JSON.parse(readFileSync(lockPath, "utf8"));
+    return typeof lock.pid === "number" ? lock : null;
+  }),
+  stopDaemonInstance: vi.fn(async (home: string) => {
+    rmSync(path.join(home, "paseo.pid"), { force: true });
+    return { action: "stopped", pid: process.pid, forced: false, usedLifecycleRpc: false };
+  }),
   createNodeEntrypointInvocation: vi.fn(() => ({
     command: "node",
     args: [],
@@ -55,6 +65,8 @@ vi.mock("@getpaseo/server/daemon-control", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   resolvePaseoHome: () => mocks.paseoHome,
   spawnProcess: mocks.spawnProcess,
+  readDaemonInstance: mocks.readDaemonInstance,
+  stopDaemonInstance: mocks.stopDaemonInstance,
 }));
 
 vi.mock("../settings/desktop-settings-electron.js", () => ({
@@ -88,6 +100,11 @@ describe("daemon-manager commands", () => {
     mocks.settings = DEFAULT_DESKTOP_SETTINGS;
     mocks.runExternalCliJsonCommand.mockReset();
     mocks.runExternalCliTextCommand.mockReset();
+    mocks.stopDaemonInstance.mockReset();
+    mocks.stopDaemonInstance.mockImplementation(async (home) => {
+      rmSync(path.join(home, "paseo.pid"), { force: true });
+      return { action: "stopped", pid: process.pid, forced: false, usedLifecycleRpc: false };
+    });
     mocks.createNodeEntrypointInvocation.mockReset();
     mocks.createNodeEntrypointInvocation.mockReturnValue({ command: "node", args: [], env: {} });
     mocks.spawnProcess.mockReset();
@@ -143,6 +160,39 @@ describe("daemon-manager commands", () => {
 
     expect(status).toMatchObject({ serverId: "", status: "stopped", pid: null });
     expect(mocks.runExternalCliJsonCommand).not.toHaveBeenCalled();
+  });
+
+  it("stops only the captured daemon in the desktop home on quit", async () => {
+    mkdirSync(mocks.paseoHome);
+    const startedAt = new Date().toISOString();
+    writeFileSync(
+      path.join(mocks.paseoHome, "paseo.pid"),
+      JSON.stringify({
+        pid: process.pid,
+        startedAt,
+        hostname: hostname(),
+        uid: process.getuid?.() ?? 0,
+        listen: "127.0.0.1:6799",
+        desktopManaged: false,
+      }),
+    );
+    const unrelatedHome = path.join(fixtureRoot, "other-paseo-home");
+    mkdirSync(unrelatedHome);
+    const unrelatedLock = path.join(unrelatedHome, "paseo.pid");
+    writeFileSync(unrelatedLock, "unrelated");
+
+    const status = await createDaemonCommandHandlers().stop_desktop_daemon({ reason: "quit" });
+
+    expect(status).toMatchObject({ status: "stopped", pid: null });
+    expect(mocks.stopDaemonInstance).toHaveBeenCalledTimes(1);
+    expect(mocks.stopDaemonInstance).toHaveBeenCalledWith(
+      mocks.paseoHome,
+      expect.objectContaining({
+        instance: expect.objectContaining({ pid: process.pid, startedAt }),
+      }),
+    );
+    expect(mocks.stopDaemonInstance.mock.calls[0]?.[1]).not.toHaveProperty("force", true);
+    expect(existsSync(unrelatedLock)).toBe(true);
   });
 
   it("reports an errored daemon when the local daemon state cannot be read", async () => {

@@ -32,19 +32,6 @@ function createFakeLayout() {
 }
 
 describe("prepareWorkspaceTab", () => {
-  it("keeps legacy workspace-scoped panel identity in workspace-first mode", () => {
-    const layout = createFakeLayout();
-    prepareWorkspaceTab({
-      serverId: SERVER_ID,
-      workspaceId: WORKSPACE_ID,
-      target: { kind: "files" },
-    }, layout);
-    expect(layout.openedTabs).toEqual([{
-      key: "server-1:/repo/worktree",
-      target: { kind: "files" },
-      pin: false,
-    }]);
-  });
   it("opens and focuses an agent tab", () => {
     const layout = createFakeLayout();
 
@@ -54,7 +41,7 @@ describe("prepareWorkspaceTab", () => {
         workspaceId: WORKSPACE_ID,
         target: { kind: "agent", agentId: AGENT_ID },
       },
-      layout
+      layout,
     );
 
     expect(layout.openedTabs).toEqual([
@@ -76,7 +63,7 @@ describe("prepareWorkspaceTab", () => {
         target: { kind: "agent", agentId: AGENT_ID },
         pin: true,
       },
-      layout
+      layout,
     );
 
     expect(layout.openedTabs).toEqual([
