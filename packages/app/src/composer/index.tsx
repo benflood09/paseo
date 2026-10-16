@@ -1582,7 +1582,8 @@ function ComposerContentImpl({
   );
 
   const queueMessage = useCallback(
-    (queuedMessage: string, queuedAttachments: ComposerAttachment[]) => {
+    async (queuedMessage: string, queuedAttachments: ComposerAttachment[]) => {
+      await getHostRuntimeStore().prepareQueuedAgentMessage(serverId, agentId);
       const result = queueComposerMessage({
         agentId,
         text: queuedMessage,
@@ -1598,6 +1599,7 @@ function ComposerContentImpl({
     },
     [
       agentId,
+      serverId,
       clearSentAttachments,
       queueWriter,
       resetSuppression,
@@ -1624,7 +1626,7 @@ function ComposerContentImpl({
         // transport is disconnected, because the parent decides the failure mode.
         canSubmit: Boolean(sendAgentMessageRef.current || onSubmitMessageRef.current),
         queueMessage: ({ message: queuedText, attachments: queuedAttachments }) => {
-          queueMessage(queuedText, queuedAttachments);
+          return queueMessage(queuedText, queuedAttachments);
         },
         submitMessage: async ({ message: submitText, attachments: submitAttachments }) => {
           if (submitBehavior !== "preserve-and-lock") {
@@ -1903,6 +1905,7 @@ function ComposerContentImpl({
     async (id: string) => {
       if (!sendAgentMessageRef.current && !onSubmitMessageRef.current) return;
       // Reuse the regular send path; server-side send atomically interrupts any active run.
+      const settleCompletionQueue = getHostRuntimeStore().beginQueuedAgentSubmission(serverId, agentId);
       const result = await sendQueuedComposerMessageNow({
         agentId,
         messageId: id,
@@ -1910,12 +1913,12 @@ function ComposerContentImpl({
         submitMessage: ({ text, attachments: queuedAttachments }) =>
           submitMessage(text, queuedAttachments),
         failedToSendMessage: t("composer.errors.failedToSend"),
-      });
+      }).finally(settleCompletionQueue);
       if (result.status === "failed") {
         setSendError(result.errorMessage);
       }
     },
-    [agentId, queueWriter, submitMessage, t],
+    [agentId, serverId, queueWriter, submitMessage, t],
   );
 
   const handleQueue = useCallback(
@@ -1934,7 +1937,9 @@ function ComposerContentImpl({
         commands: pluginClientSlashCommands,
       });
       if (pluginSlashCommand && runPluginClientSlashCommand(pluginSlashCommand)) return;
-      queueMessage(payload.text, outgoingAttachments);
+      void queueMessage(payload.text, outgoingAttachments).catch((error) => {
+        setSendError(resolveErrorMessage(error));
+      });
     },
     [
       attachments,

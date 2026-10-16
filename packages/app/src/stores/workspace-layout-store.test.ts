@@ -3722,6 +3722,23 @@ describe("workspace-layout-store actions", () => {
     ).toEqual(["agent_parent-agent"]);
   });
 
+  it("reconcileTabs leaves active agent tabs closed when thread mode omits auto-open ids", () => {
+    const workspaceKey = createWorkspaceKey();
+
+    workspaceLayoutStore.getState().reconcileTabs(workspaceKey, {
+      agentsHydrated: true,
+      terminalsHydrated: true,
+      activeAgentIds: ["agent-1"],
+      standaloneTerminalIds: [],
+    });
+
+    expect(
+      contentTabs(workspaceLayoutStore.getState().getWorkspaceTabs(workspaceKey)).filter(
+        (tab) => tab.target.kind === "agent",
+      ),
+    ).toEqual([]);
+  });
+
   it("reconcileTabs keeps manually opened subagent tabs that remain active", () => {
     const workspaceKey = createWorkspaceKey();
     const store = workspaceLayoutStore.getState();
@@ -3830,6 +3847,46 @@ describe("workspace-layout-store actions", () => {
     const layout = workspaceLayoutStore.getState().layoutByWorkspace[workspaceKey];
     expect(tabs.map((tab) => tab.tabId)).toEqual(["terminal_term-script", "terminal_term-manual"]);
     expect(findPaneById(layout.root, layout.focusedPaneId)?.focusedTabId).toBe(scriptTabId);
+  });
+
+  it("reconcileTabs preserves sibling workspace tabs in a shared project layout", () => {
+    const workspaceKey = `${SERVER_ID}:project:shared`;
+    const store = workspaceLayoutStore.getState();
+    for (const [kind, workspaceId, id] of [
+      ["agent", WORKSPACE_ID, "current-agent"],
+      ["agent", WORKSPACE_ID, "stale-current-agent"],
+      ["agent", "ws-sibling", "sibling-agent"],
+      ["terminal", WORKSPACE_ID, "current-terminal"],
+      ["terminal", WORKSPACE_ID, "stale-current-terminal"],
+      ["terminal", "ws-sibling", "sibling-terminal"],
+    ] as const) {
+      store.openTab({
+        workspaceKey,
+        target:
+          kind === "agent"
+            ? { kind, agentId: id, workspaceId }
+            : { kind, terminalId: id, workspaceId },
+        intent: "reveal",
+      });
+    }
+
+    store.reconcileTabs(workspaceKey, {
+      workspaceId: WORKSPACE_ID,
+      agentsHydrated: true,
+      terminalsHydrated: true,
+      activeAgentIds: ["current-agent"],
+      knownTerminalIds: ["current-terminal"],
+      standaloneTerminalIds: [],
+    });
+
+    expect(
+      contentTabs(store.getWorkspaceTabs(workspaceKey)).map((tab) => tab.tabId),
+    ).toEqual([
+      "agent_current-agent",
+      "agent_sibling-agent",
+      "terminal_current-terminal",
+      "terminal_sibling-terminal",
+    ]);
   });
 
   it("reconcileTabs does not auto-open live non-standalone terminals", () => {

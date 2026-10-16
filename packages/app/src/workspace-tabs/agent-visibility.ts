@@ -1,4 +1,4 @@
-import type { Agent } from "@/stores/session-store";
+import type { Agent, WorkspaceDescriptor } from "@/stores/session-store";
 import type { WorkspaceTabSnapshot } from "@/stores/workspace-layout-actions";
 import { isWorkspaceRootAgent } from "@/subagents/policies";
 import { normalizeWorkspaceOpaqueId } from "@/utils/workspace-identity";
@@ -38,7 +38,9 @@ export function deriveWorkspaceAgentVisibility(input: {
     }
     if (!agent.archivedAt) {
       activeAgentIds.add(agent.id);
-      const parentAgent = agent.parentAgentId ? agentsById.get(agent.parentAgentId) : undefined;
+      const parentAgent = agent.parentAgentId
+        ? agentsById.get(agent.parentAgentId)
+        : undefined;
       if (isWorkspaceRootAgent(agent, parentAgent)) {
         autoOpenAgentIds.add(agent.id);
       }
@@ -47,8 +49,39 @@ export function deriveWorkspaceAgentVisibility(input: {
   return { activeAgentIds, autoOpenAgentIds };
 }
 
+export function deriveProjectAgentVisibility(input: {
+  sessionAgents: Map<string, Agent> | undefined;
+  agentDetails?: Map<string, Agent> | undefined;
+  workspaces: Map<string, WorkspaceDescriptor> | undefined;
+  projectKey: string | null | undefined;
+  fallbackWorkspaceId: string | null | undefined;
+}): WorkspaceAgentVisibility {
+  const projectKey = input.projectKey?.trim() || null;
+  const workspaceIds = new Set<string>();
+  for (const workspace of input.workspaces?.values() ?? []) {
+    if ((workspace.project?.projectKey ?? workspace.projectId) === projectKey) {
+      const id = normalizeWorkspaceOpaqueId(workspace.id);
+      if (id) workspaceIds.add(id);
+    }
+  }
+  if (workspaceIds.size === 0) {
+    const fallback = normalizeWorkspaceOpaqueId(input.fallbackWorkspaceId);
+    if (fallback) workspaceIds.add(fallback);
+  }
+  const activeAgentIds = new Set<string>();
+  const autoOpenAgentIds = new Set<string>();
+  for (const agent of input.sessionAgents?.values() ?? []) {
+    if (!workspaceIds.has(normalizeWorkspaceOpaqueId(agent.workspaceId) ?? ""))
+      continue;
+    if (!agent.archivedAt) activeAgentIds.add(agent.id);
+  }
+  return { activeAgentIds, autoOpenAgentIds };
+}
+
 export function buildWorkspaceTabSnapshot(input: {
+  workspaceId?: string | null;
   agentVisibility: WorkspaceAgentVisibility;
+  autoOpenAgentIds?: Iterable<string>;
   agentsHydrated: boolean;
   terminalsHydrated: boolean;
   knownTerminalIds: Iterable<string>;
@@ -57,10 +90,12 @@ export function buildWorkspaceTabSnapshot(input: {
   hasActivePendingDraftCreate: boolean;
 }): WorkspaceTabSnapshot {
   return {
+    workspaceId: input.workspaceId,
     agentsHydrated: input.agentsHydrated,
     terminalsHydrated: input.terminalsHydrated,
     activeAgentIds: input.agentVisibility.activeAgentIds,
-    autoOpenAgentIds: input.agentVisibility.autoOpenAgentIds,
+    autoOpenAgentIds:
+      input.autoOpenAgentIds ?? input.agentVisibility.autoOpenAgentIds,
     knownTerminalIds: input.knownTerminalIds,
     standaloneTerminalIds: input.standaloneTerminalIds,
     hasActivePendingTerminalCreate: input.hasActivePendingTerminalCreate,
@@ -70,7 +105,7 @@ export function buildWorkspaceTabSnapshot(input: {
 
 export function workspaceAgentVisibilityEqual(
   a: WorkspaceAgentVisibility,
-  b: WorkspaceAgentVisibility,
+  b: WorkspaceAgentVisibility
 ): boolean {
   return (
     setsEqual(a.activeAgentIds, b.activeAgentIds) &&

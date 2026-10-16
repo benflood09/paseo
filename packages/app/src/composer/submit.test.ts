@@ -251,3 +251,21 @@ describe("submitAgentInput", () => {
     expect(clearDraft).toHaveBeenCalledWith("sent");
   });
 });
+
+it("preserves queued draft until daemon invalidation acknowledges and reports rejection", async () => {
+  const barrier = createDeferredPromise<void>();
+  const setUserInput = vi.fn();
+  const setAttachments = vi.fn();
+  const setSendError = vi.fn();
+  const submitted = submitAgentInput({
+    message: "queued", attachments: [], isAgentRunning: true, canSubmit: true,
+    queueMessage: () => barrier.promise, submitMessage: vi.fn(), clearDraft: vi.fn(),
+    setUserInput, setAttachments, setSendError, setIsProcessing: vi.fn(),
+  });
+  expect(setUserInput).not.toHaveBeenCalled();
+  expect(setAttachments).not.toHaveBeenCalled();
+  barrier.reject(new Error("completion barrier unavailable"));
+  await expect(submitted).resolves.toBe("failed");
+  expect(setSendError).toHaveBeenCalledWith("completion barrier unavailable");
+  expect(setUserInput).not.toHaveBeenCalled();
+});

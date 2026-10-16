@@ -2,6 +2,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { UUID } from "builder-util-runtime";
+import { app } from "electron";
 import { describe, expect, it, vi } from "vitest";
 
 const { autoUpdaterMock } = vi.hoisted(() => {
@@ -28,6 +29,7 @@ const { autoUpdaterMock } = vi.hoisted(() => {
 vi.mock("electron", () => ({
   app: {
     getPath: vi.fn(),
+    getVersion: vi.fn(() => "1.2.3"),
     isPackaged: true,
   },
 }));
@@ -47,6 +49,20 @@ import {
 } from "./auto-updater";
 
 describe("checkForAppUpdate", () => {
+  it("never checks upstream releases from a personal fork build", async () => {
+    vi.mocked(app.getVersion).mockReturnValueOnce("0.10.2-fork.1");
+    autoUpdaterMock.checkForUpdates.mockClear();
+
+    const result = await checkForAppUpdate({
+      currentVersion: "0.10.2-fork.1",
+      releaseChannel: "stable",
+      intent: "automatic",
+    });
+
+    expect(result.hasUpdate).toBe(false);
+    expect(autoUpdaterMock.checkForUpdates).not.toHaveBeenCalled();
+  });
+
   it("treats an unpublished channel manifest as an unavailable update", async () => {
     const error = Object.assign(new Error("Cannot find latest-mac.yml"), {
       code: "ERR_UPDATER_CHANNEL_FILE_NOT_FOUND",

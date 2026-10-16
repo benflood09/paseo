@@ -12,7 +12,10 @@ import {
 } from "@/utils/workspace-identity";
 import type { ActiveWorkspaceSelection } from "@/stores/last-workspace-selection";
 import type { WorkspaceTabTarget } from "@/workspace-tabs/model";
-import { prepareWorkspaceTab, type PrepareWorkspaceTabDeps } from "@/utils/prepare-workspace-tab";
+import {
+  prepareWorkspaceTab,
+  type PrepareWorkspaceTabDeps,
+} from "@/utils/prepare-workspace-tab";
 import type { WorkspaceTabPlacement } from "@/stores/workspace-layout-actions";
 
 export interface RouteSelectionInput {
@@ -32,11 +35,17 @@ export interface NavigateToWorkspaceInput {
 }
 
 export interface NavigateToWorkspaceDeps extends PrepareWorkspaceTabDeps {
-  getSessionWorkspaces: (serverId: string) => Map<string, WorkspaceDescriptor> | null | undefined;
+  getSessionWorkspaces: (
+    serverId: string
+  ) => Map<string, WorkspaceDescriptor> | null | undefined;
   getSessionAgents: (serverId: string) => Iterable<Agent>;
   isWorkspaceLayoutHydrated: () => boolean;
   rememberLastWorkspace: (selection: ActiveWorkspaceSelection) => void;
   navigateToRoute: (route: string) => void;
+  resolveTabScopeKey?: (input: {
+    serverId: string;
+    workspaceId: string;
+  }) => string | null;
 }
 
 export interface NavigateToLastWorkspaceDeps extends NavigateToWorkspaceDeps {
@@ -60,7 +69,9 @@ function parseWorkspaceSelectionFromRouteParams(params: {
 }): ActiveWorkspaceSelection | null {
   const serverId = getParamValue(params.serverId);
   const workspaceValue = getParamValue(params.workspaceId);
-  const workspaceId = workspaceValue ? decodeWorkspaceIdFromPathSegment(workspaceValue) : null;
+  const workspaceId = workspaceValue
+    ? decodeWorkspaceIdFromPathSegment(workspaceValue)
+    : null;
   if (!serverId || !workspaceId) {
     return null;
   }
@@ -68,7 +79,7 @@ function parseWorkspaceSelectionFromRouteParams(params: {
 }
 
 export function parseActiveWorkspaceSelection(
-  input: RouteSelectionInput,
+  input: RouteSelectionInput
 ): ActiveWorkspaceSelection | null {
   const routeSelection = parseHostWorkspaceRouteFromPathname(input.pathname);
   if (routeSelection) {
@@ -84,7 +95,7 @@ export function parseActiveWorkspaceSelection(
 
 export function navigateToWorkspace(
   input: NavigateToWorkspaceInput,
-  deps: NavigateToWorkspaceDeps,
+  deps: NavigateToWorkspaceDeps
 ): string {
   const workspaces = deps.getSessionWorkspaces(input.serverId);
   const resolvedWorkspaceId = resolveWorkspaceMapKeyByIdentity({
@@ -92,16 +103,26 @@ export function navigateToWorkspace(
     workspaceId: input.workspaceId,
   });
   const shouldDeferAgentOpen = Boolean(
-    input.target?.kind === "agent" && (!resolvedWorkspaceId || !deps.isWorkspaceLayoutHydrated()),
+    input.target?.kind === "agent" &&
+      (!resolvedWorkspaceId || !deps.isWorkspaceLayoutHydrated())
   );
   if (input.target) {
     if (!shouldDeferAgentOpen) {
-      prepareWorkspaceTab({ ...input, target: input.target }, deps);
+      prepareWorkspaceTab(
+        {
+          ...input,
+          target: input.target,
+          tabScopeKey: deps.resolveTabScopeKey?.(input),
+        },
+        deps
+      );
     }
   } else {
     const workspaceAgents = resolvedWorkspaceId
       ? Array.from(deps.getSessionAgents(input.serverId)).filter(
-          (agent) => normalizeWorkspaceOpaqueId(agent.workspaceId) === resolvedWorkspaceId,
+          (agent) =>
+            normalizeWorkspaceOpaqueId(agent.workspaceId) ===
+            resolvedWorkspaceId
         )
       : [];
     const attentionAgentId = pickAttentionAgent(workspaceAgents);
@@ -119,15 +140,20 @@ export function navigateToWorkspace(
       ? buildHostWorkspaceOpenRoute(
           input.serverId,
           input.workspaceId,
-          `agent:${input.target.agentId}`,
+          `agent:${input.target.agentId}`
         )
       : buildHostWorkspaceRoute(input.serverId, input.workspaceId);
-  deps.rememberLastWorkspace({ serverId: input.serverId, workspaceId: input.workspaceId });
+  deps.rememberLastWorkspace({
+    serverId: input.serverId,
+    workspaceId: input.workspaceId,
+  });
   deps.navigateToRoute(route);
   return route;
 }
 
-export function navigateToLastWorkspace(deps: NavigateToLastWorkspaceDeps): boolean {
+export function navigateToLastWorkspace(
+  deps: NavigateToLastWorkspaceDeps
+): boolean {
   const selection = deps.getLastWorkspaceSelection();
   if (!selection) {
     return false;

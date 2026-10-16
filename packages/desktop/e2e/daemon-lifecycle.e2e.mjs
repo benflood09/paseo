@@ -78,23 +78,22 @@ async function command(name, args) {
   );
 }
 try {
-  // Simulate a legacy independent launch that carries the old Desktop flag.
+  // A manually started daemon in the Desktop home remains attached for non-quit actions.
   const launch = await startDaemonInstance({
     home,
     command: process.execPath,
     args: [path.join(repo, "packages/server/dist/scripts/supervisor-entrypoint.js")],
     env,
-    mode: "deployment",
-    desktopManaged: true,
+    mode: "managed",
     timeoutMs: 30_000,
   });
   captured = launch.instance;
   await openDesktop();
   const attached = await command("start_desktop_daemon");
   assert.equal(attached.pid, captured.pid);
-  assert.equal(attached.desktopManaged, true);
+  assert.equal(attached.desktopManaged, false);
   assert.equal(attached.ownedByDesktop, false);
-  for (const reason of ["quit", "settings", "app_update", "host_remove", "version_mismatch"]) {
+  for (const reason of ["settings", "app_update", "host_remove", "version_mismatch"]) {
     const status = await command("stop_desktop_daemon", { reason });
     assert.equal(status.pid, captured.pid, `${reason} stopped an attached daemon`);
     process.kill(captured.pid, 0);
@@ -117,6 +116,20 @@ try {
   assert.equal(stopped.status, "stopped");
   captured = null;
 
+  const manuallyStarted = await startDaemonInstance({
+    home,
+    command: process.execPath,
+    args: [path.join(repo, "packages/server/dist/scripts/supervisor-entrypoint.js")],
+    env,
+    mode: "managed",
+    timeoutMs: 30_000,
+  });
+  captured = manuallyStarted.instance;
+  const quitStopped = await command("stop_desktop_daemon", { reason: "quit" });
+  assert.equal(quitStopped.status, "stopped");
+  assert.equal(await readDaemonInstance(home), null);
+  captured = null;
+
   const owned = await command("start_desktop_daemon");
   captured = await readDaemonInstance(home);
   assert.equal(owned.pid, captured.pid);
@@ -135,13 +148,9 @@ try {
   process.kill(captured.pid, 0);
   await openDesktop();
   assert.equal((await command("start_desktop_daemon")).ownedByDesktop, false);
-  await command("stop_desktop_daemon", { reason: "quit" });
-  process.kill(captured.pid, 0);
-  await command("stop_desktop_daemon", {
-    reason: "manual_ipc",
-    pid: captured.pid,
-    startedAt: captured.startedAt,
-  });
+  const stoppedAfterReopen = await command("stop_desktop_daemon", { reason: "quit" });
+  assert.equal(stoppedAfterReopen.status, "stopped");
+  assert.equal(await readDaemonInstance(home), null);
   captured = null;
   const next = await command("start_desktop_daemon");
   captured = await readDaemonInstance(home);
@@ -195,7 +204,7 @@ try {
     );
   }
   console.log(
-    "PASS: attached legacy daemon survives automatic actions; explicit captured stop, owned launch, managed settings, worker restart, and next-session attachment.",
+    "PASS: same-home manual daemon survives non-quit actions and stops on quit; explicit captured stop, owned launch, keep-running setting, worker restart, and next-session attachment.",
   );
 } finally {
   await closeDesktop();
