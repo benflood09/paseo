@@ -22,6 +22,25 @@ class FakeTts implements TextToSpeechProvider {
 }
 
 describe("TTSManager", () => {
+  it("passes the playback AbortSignal into pending provider synthesis", async () => {
+    const abort = new AbortController();
+    let received: AbortSignal | undefined;
+    const tts: TextToSpeechProvider = {
+      async synthesizeSpeech(_text, signal) {
+        received = signal;
+        return new Promise((_, reject) => {
+          signal!.addEventListener("abort", () => reject(new Error("cancelled")), { once: true });
+        });
+      },
+    };
+    const manager = new TTSManager("cancel", pino({ level: "silent" }), tts);
+    const task = manager.generateAndWaitForPlayback("hello", () => {}, abort.signal, true);
+    expect(received).toBe(abort.signal);
+    abort.abort();
+    await task;
+    expect(received?.aborted).toBe(true);
+  });
+
   it("emits chunks and resolves once confirmed", async () => {
     const manager = new TTSManager("s1", pino({ level: "silent" }), new FakeTts());
     const abort = new AbortController();

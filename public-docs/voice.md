@@ -111,6 +111,14 @@ Paseo uses these paths under the configured OpenAI base URL:
 - voice mode STT: `/v1/audio/transcriptions`
 - voice mode TTS: `/v1/audio/speech`
 
+### Credential-owner transport
+
+For the fixed SOMA speech consumer, set `providers.openai.credentialLauncher` to the absolute path of the approved `soma-credentials` executable instead of providing API keys. Keep the speech feature providers set to `openai`. This route supports only `gpt-4o-transcribe` input and `tts-1` / `alloy` PCM output; conflicting model or voice selections fail configuration resolution.
+
+Paseo launches the executable without a shell with the fixed arguments `exec paseo-speech-shared --consumer paseo-speech`. The attached `paseo-speech-v1` NDJSON child owns authentication and returns only bounded transcript/audio responses. Configuration and capability checks never launch it. Active STT sessions and TTS tasks share the attached worker; the last lease closes it. Authentication, launcher, and protocol failures remain latched until those leases end. The current NDJSON contract buffers each response before exposing its PCM stream, so it does not provide progressive first-byte playback.
+
+Do not put a real speech key in Paseo configuration or its process environment for this route. Without the selector, the direct OpenAI configuration above is unchanged. This selector does not change coding-agent credentials, model selection, or tool availability.
+
 ## Environment Variables
 
 - `PASEO_VOICE_LLM_PROVIDER`, voice agent provider override

@@ -85,6 +85,7 @@ describe("OpenAISTT", () => {
         prompt: "Only transcribe the speaker.",
         response_format: "json",
       }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
   });
 });

@@ -13,6 +13,7 @@ import type {
   TurnDetectionSession,
 } from "../../speech/turn-detection-provider.js";
 import { createVoiceTurnController } from "./voice-turn-controller.js";
+import { ManagedSpeechTerminalError } from "../../speech/providers/openai/credential-transport.js";
 
 class FakeTurnDetectionSession extends EventEmitter implements TurnDetectionSession {
   public readonly requiredSampleRate = 16000;
@@ -35,6 +36,7 @@ class FakeSttSession extends EventEmitter implements StreamingTranscriptionSessi
   public connectCount = 0;
   public closeCount = 0;
   public commitCount = 0;
+  public connectGate?: Promise<void>;
 
   constructor(requiredSampleRate = 16000) {
     super();
@@ -43,6 +45,7 @@ class FakeSttSession extends EventEmitter implements StreamingTranscriptionSessi
 
   async connect(): Promise<void> {
     this.connectCount += 1;
+    await this.connectGate;
   }
 
   appendPcm16(chunk: Buffer): void {
@@ -84,12 +87,14 @@ function createFakeTurnDetectionProvider(session: FakeTurnDetectionSession): Tur
 function createFakeSttProvider(
   sessions: FakeSttSession[],
   captureLanguage?: (language: string | undefined) => void,
+  reconnectGate?: Promise<void>,
 ): SpeechToTextProvider {
   return {
     id: "local",
     createSession(params) {
       captureLanguage?.(params.language);
       const session = new FakeSttSession();
+      if (sessions.length > 0) session.connectGate = reconnectGate;
       sessions.push(session);
       return session;
     },
@@ -102,13 +107,20 @@ async function settleSerialQueue(): Promise<void> {
   await Promise.resolve();
 }
 
-function createControllerHarness(options?: { sttLanguage?: string }) {
+function createControllerHarness(options?: {
+  sttLanguage?: string;
+  reconnectGate?: Promise<void>;
+}) {
   const detector = new FakeTurnDetectionSession();
   const sttSessions: FakeSttSession[] = [];
   let lastSttLanguage: string | undefined;
-  const stt = createFakeSttProvider(sttSessions, (language) => {
-    lastSttLanguage = language;
-  });
+  const stt = createFakeSttProvider(
+    sttSessions,
+    (language) => {
+      lastSttLanguage = language;
+    },
+    options?.reconnectGate,
+  );
   const onSpeechStarted = vi.fn(async () => {});
   const onSpeechStopped = vi.fn(async () => {});
   const onPartialTranscript = vi.fn(
@@ -154,6 +166,56 @@ function createControllerHarness(options?: { sttLanguage?: string }) {
 }
 
 describe("voice turn controller", () => {
+  it("does not reconnect queued errors after stop or forward old-generation events", async () => {
+    const harness = createControllerHarness();
+    await harness.controller.start();
+    const old = harness.sttSessions[0]!;
+    old.emitError(new Error("transient"));
+    await harness.controller.stop();
+    expect(harness.sttSessions).toHaveLength(1);
+    await harness.controller.start();
+    old.emitError(new Error("late"));
+    old.emitTranscript({ segmentId: "old", transcript: "late", isFinal: true });
+    await settleSerialQueue();
+    expect(harness.sttSessions).toHaveLength(2);
+    expect(harness.onError).toHaveBeenCalledTimes(1);
+    expect(harness.onFinalTranscript).not.toHaveBeenCalled();
+    await harness.controller.stop();
+  });
+
+  it("typed terminal auth failure prevents automatic reconnect until explicit start", async () => {
+    const harness = createControllerHarness();
+    await harness.controller.start();
+    harness.sttSessions[0]!.emitError(new ManagedSpeechTerminalError());
+    harness.detector.emit("speech_started");
+    await settleSerialQueue();
+    expect(harness.sttSessions).toHaveLength(1);
+    expect(harness.sttSessions[0]!.closeCount).toBe(1);
+    expect(harness.onError).toHaveBeenCalledTimes(1);
+    expect(harness.onSpeechStarted).not.toHaveBeenCalled();
+    await harness.controller.stop();
+    await harness.controller.start();
+    expect(harness.sttSessions).toHaveLength(2);
+    await harness.controller.stop();
+  });
+
+  it("stop closes an in-flight reconnect and ignores its late failure", async () => {
+    const gate = Promise.withResolvers<void>();
+    const harness = createControllerHarness({ reconnectGate: gate.promise });
+    await harness.controller.start();
+    // The provider adapter creates the replacement synchronously before connect.
+    harness.sttSessions[0]!.emitError(new Error("retry"));
+    await settleSerialQueue();
+    expect(harness.sttSessions).toHaveLength(2);
+    const stopped = harness.controller.stop();
+    gate.reject(new Error("connect failed after stop"));
+    await stopped;
+    harness.sttSessions[1]!.emitError(new Error("late failure"));
+    await settleSerialQueue();
+    expect(harness.sttSessions).toHaveLength(2);
+    expect(harness.onError).toHaveBeenCalledTimes(1);
+  });
+
   it("passes configured language to streaming STT", async () => {
     const harness = createControllerHarness({ sttLanguage: "pt" });
 

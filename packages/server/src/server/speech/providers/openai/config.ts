@@ -8,6 +8,7 @@ import type { TTSConfig } from "./tts.js";
 export const DEFAULT_OPENAI_TTS_MODEL = "tts-1";
 
 export interface OpenAiSpeechProviderConfig {
+  credentialLauncher?: string;
   stt?: Partial<STTConfig> & { apiKey?: string };
   tts?: Partial<TTSConfig> & { apiKey?: string };
 }
@@ -161,6 +162,25 @@ export function resolveOpenAiSpeechConfig(params: {
   persisted: PersistedConfig;
   providers: RequestedSpeechProviders;
 }): OpenAiSpeechProviderConfig | undefined {
+  const credentialLauncher = params.persisted.providers?.openai?.credentialLauncher;
+  if (credentialLauncher) {
+    const sttOptions = OpenAiSttOptionsSchema.parse(buildOpenAiSttInput(params));
+    const ttsOptions = OpenAiTtsOptionsSchema.parse(buildOpenAiTtsInput(params));
+    if (sttOptions.sttModel && sttOptions.sttModel !== "gpt-4o-transcribe")
+      throw new Error("Managed speech requires gpt-4o-transcribe");
+    if (ttsOptions.ttsModel !== "tts-1" || ttsOptions.ttsVoice !== "alloy")
+      throw new Error("Managed speech requires tts-1/alloy");
+    return {
+      credentialLauncher,
+      stt: {
+        model: "gpt-4o-transcribe",
+        ...(sttOptions.sttConfidenceThreshold !== undefined
+          ? { confidenceThreshold: sttOptions.sttConfidenceThreshold }
+          : {}),
+      },
+      tts: { model: "tts-1", voice: "alloy", responseFormat: "pcm" },
+    };
+  }
   const input = buildOpenAiResolutionInput(params);
   const keys = OpenAiEndpointKeysSchema.parse(input);
 

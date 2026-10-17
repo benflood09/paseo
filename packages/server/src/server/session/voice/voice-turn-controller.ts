@@ -11,6 +11,8 @@ import type {
 } from "../../speech/speech-provider.js";
 import type { TurnDetectionProvider } from "../../speech/turn-detection-provider.js";
 
+import { ManagedSpeechTerminalError } from "../../speech/providers/openai/credential-transport.js";
+
 const VOICE_FINAL_TRANSCRIPT_TIMEOUT_MS = 10_000;
 
 const FILLER_PARTIAL_WORDS = new Set([
@@ -101,6 +103,9 @@ export function createVoiceTurnController(params: {
     logger: params.logger.child({ component: "turn-detection" }),
   });
 
+  let stopped = true;
+  let generation = 0;
+  let terminalFailure = false;
   let state: VoiceInputState = { status: "idle" };
   let resampler: Pcm16MonoResampler | null = null;
   let sttSession: StreamingTranscriptionSession | null = null;
@@ -235,6 +240,8 @@ export function createVoiceTurnController(params: {
   }
 
   async function reconnectSttSession(): Promise<void> {
+    if (stopped || terminalFailure) return;
+    const reconnectGeneration = generation;
     const previousSession = sttSession;
     sttSession = null;
     sttResampler = null;
@@ -243,19 +250,25 @@ export function createVoiceTurnController(params: {
 
     try {
       const nextSession = createSttSession();
-      await nextSession.connect();
       sttSession = nextSession;
+      await nextSession.connect();
+      if (stopped || generation !== reconnectGeneration || terminalFailure) {
+        nextSession.close();
+        return;
+      }
       params.logger.info("voice_turn.stt_reconnected");
     } catch (error) {
-      fail(error);
+      if (!stopped && generation === reconnectGeneration) handleSttError(error);
       params.logger.warn({ err: error }, "voice_turn.stt_reconnect_failed");
     }
   }
 
   function handleSttError(error: unknown): void {
+    if (stopped || terminalFailure) return;
+    terminalFailure = error instanceof ManagedSpeechTerminalError;
     fail(error);
     params.logger.warn({ err: error }, "voice_turn.stt_error");
-    if (reconnectAttemptedForTurn) {
+    if (terminalFailure || reconnectAttemptedForTurn) {
       sttSession?.close();
       sttSession = null;
       return;
@@ -322,8 +335,14 @@ export function createVoiceTurnController(params: {
       logger: params.logger.child({ component: "stt" }),
       language: params.sttLanguage ?? "en",
     });
-    session.on("transcript", handleSttTranscript);
+    const sessionGeneration = generation;
+    const active = () =>
+      !stopped && !terminalFailure && generation === sessionGeneration && sttSession === session;
+    session.on("transcript", (event) => {
+      if (active()) handleSttTranscript(event);
+    });
     session.on("committed", ({ segmentId }) => {
+      if (!active()) return;
       sealedTranscriptSegmentIds.add(segmentId);
       if (state.status === "capturing" && !activeTranscriptSegmentId) {
         activeTranscriptSegmentId = segmentId;
@@ -334,14 +353,22 @@ export function createVoiceTurnController(params: {
         maybeFireFinalTranscript(turn);
       }
     });
-    session.on("error", handleSttError);
+    session.on("error", (error) => {
+      if (active()) handleSttError(error);
+    });
     return session;
   }
 
   function runSerial(task: () => Promise<void>): Promise<void> {
-    queued = queued.then(task).catch((error) => {
-      fail(error);
-    });
+    const taskGeneration = generation;
+    queued = queued
+      .then(async () => {
+        if (!stopped && !terminalFailure && taskGeneration === generation) return task();
+        return;
+      })
+      .catch((error) => {
+        if (!stopped && taskGeneration === generation) fail(error);
+      });
     return queued;
   }
 
@@ -403,7 +430,9 @@ export function createVoiceTurnController(params: {
       return;
     }
 
+    const startedGeneration = generation;
     await params.callbacks.onSpeechStarted();
+    if (stopped || generation !== startedGeneration || terminalFailure) return;
 
     const startedAt = Date.now();
     activeTranscriptSegmentId = null;
@@ -472,18 +501,34 @@ export function createVoiceTurnController(params: {
   detector.on("speech_stopped", () => {
     void runSerial(handleSpeechStopped);
   });
-  detector.on("error", fail);
+  detector.on("error", (error) => {
+    if (!stopped && !terminalFailure) fail(error);
+  });
 
   return {
     async start(): Promise<void> {
+      sttSession?.close();
+      stopped = false;
+      terminalFailure = false;
+      const startGeneration = ++generation;
       sttSession = createSttSession();
-      await sttSession.connect();
+      const session = sttSession;
+      await session.connect();
+      if (stopped || generation !== startGeneration) {
+        session.close();
+        return;
+      }
       await detector.connect();
+      if (stopped || generation !== startGeneration) return;
       state = { status: "listening" };
     },
 
     async stop(): Promise<void> {
-      await runSerial(async () => {
+      stopped = true;
+      ++generation;
+      clearFinalizingTurnTimeout();
+      sttSession?.close();
+      await (queued = queued.then(async () => {
         clearFinalizingTurnTimeout();
         detector.close();
         sttSession?.close();
@@ -494,7 +539,8 @@ export function createVoiceTurnController(params: {
         sttSession = null;
         currentFinalizingTurn = null;
         state = { status: "idle" };
-      });
+        return;
+      }));
     },
 
     async appendClientChunk(input): Promise<void> {
