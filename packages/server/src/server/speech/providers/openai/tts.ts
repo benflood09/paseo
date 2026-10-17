@@ -101,7 +101,9 @@ export class OpenAITTS implements TextToSpeechProvider {
               })(),
             );
       const abort = () => {
-        void reader?.cancel();
+        void reader?.cancel().catch(() => {
+          this.logger.debug("Speech response cancellation failed during abort");
+        });
         audioStream.destroy();
         release?.();
       };

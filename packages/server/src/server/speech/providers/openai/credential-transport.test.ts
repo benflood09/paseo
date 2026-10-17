@@ -60,6 +60,77 @@ test("direct SDK TTS abort cancels an unread Web response", async () => {
   expect(cancelled).toHaveBeenCalledTimes(1);
 });
 
+test("direct SDK TTS abort contains an already-errored response cancellation", async () => {
+  const messages: string[] = [];
+  const logger = pino(
+    { level: "debug" },
+    {
+      write(line) {
+        messages.push(JSON.parse(line).msg);
+      },
+    },
+  );
+  const cancelled = vi.fn();
+  const upstreamAborted = vi.fn();
+  const fetchAudio: typeof fetch = async (_input, init) => {
+    const sdkSignal = init?.signal;
+    if (!sdkSignal) throw new Error("Expected SDK request cancellation signal");
+    return new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          sdkSignal.addEventListener(
+            "abort",
+            () => {
+              upstreamAborted();
+              controller.error(new Error("public fixture upstream aborted"));
+            },
+            { once: true },
+          );
+        },
+        cancel: cancelled,
+      }),
+    );
+  };
+  const tts = new OpenAITTS({ apiKey: "public-synthetic-fixture" }, logger, undefined, fetchAudio);
+  const controller = new AbortController();
+  const audio = await tts.synthesizeSpeech("public fixture", controller.signal);
+  const closed = once(audio.stream, "close");
+  controller.abort();
+  await closed;
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  expect(upstreamAborted).toHaveBeenCalledTimes(1);
+  expect(cancelled).not.toHaveBeenCalled();
+  expect(audio.stream.destroyed).toBe(true);
+  expect(messages).toContain("Speech response cancellation failed during abort");
+});
+
+test("direct SDK TTS abort contains a rejecting response cancellation hook", async () => {
+  const messages: string[] = [];
+  const logger = pino(
+    { level: "debug" },
+    {
+      write(line) {
+        messages.push(JSON.parse(line).msg);
+      },
+    },
+  );
+  const cancelled = vi.fn(async () => {
+    throw new Error("public fixture cancellation rejected");
+  });
+  const fetchAudio: typeof fetch = async () =>
+    new Response(new ReadableStream<Uint8Array>({ cancel: cancelled }));
+  const tts = new OpenAITTS({ apiKey: "public-synthetic-fixture" }, logger, undefined, fetchAudio);
+  const controller = new AbortController();
+  const audio = await tts.synthesizeSpeech("public fixture", controller.signal);
+  const closed = once(audio.stream, "close");
+  controller.abort();
+  await closed;
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  expect(cancelled).toHaveBeenCalledTimes(1);
+  expect(audio.stream.destroyed).toBe(true);
+  expect(messages).toContain("Speech response cancellation failed during abort");
+});
+
 async function barrier(directory: string, name: string) {
   const watcher = watch(directory);
   try {
