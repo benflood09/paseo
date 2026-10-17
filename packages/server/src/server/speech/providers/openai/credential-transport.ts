@@ -236,7 +236,17 @@ export class CredentialTransport {
       }
     }
     if (request.signal.aborted) throw new Error("Speech request cancelled");
-    await this.start();
+    let abortReady: () => void = () => {};
+    const cancelledReady = new Promise<never>((_, reject) => {
+      abortReady = () => reject(new Error("Speech request cancelled"));
+      request.signal.addEventListener("abort", abortReady, { once: true });
+      if (request.signal.aborted) abortReady();
+    });
+    try {
+      await Promise.race([this.start(), cancelledReady]);
+    } finally {
+      request.signal.removeEventListener("abort", abortReady);
+    }
     if (request.signal.aborted) {
       throw new Error("Speech request cancelled");
     }

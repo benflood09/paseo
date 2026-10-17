@@ -234,7 +234,7 @@ describe("VoiceSession streaming transcription", () => {
     detector.emit("speech_started");
     await settle();
     detector.emit("speech_stopped");
-    await settle();
+    await vi.waitFor(() => expect(sttSession.commitCount).toBe(1));
     sttSession.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
     sttSession.emitTranscript({
       segmentId: "segment-1",
@@ -244,12 +244,12 @@ describe("VoiceSession streaming transcription", () => {
       avgLogprob: -0.1,
       isLowConfidence: false,
     });
-    await settle();
-
+    await vi.waitFor(() =>
+      expect(host.spokenInput).toEqual([
+        { agentId: VOICE_AGENT_ID, text: "ship the streaming final" },
+      ]),
+    );
     expect(sttSession.commitCount).toBe(1);
-    expect(host.spokenInput).toEqual([
-      { agentId: VOICE_AGENT_ID, text: "ship the streaming final" },
-    ]);
     expect(host.emitted).toContainEqual(
       expect.objectContaining({
         type: "transcription_result",
@@ -273,7 +273,7 @@ describe("VoiceSession streaming transcription", () => {
       detector.emit("speech_started");
       await settle();
       detector.emit("speech_stopped");
-      await settle();
+      await vi.waitFor(() => expect(sttSession.commitCount).toBe(1));
       sttSession.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
 
       await vi.advanceTimersByTimeAsync(10_000);
@@ -300,7 +300,7 @@ describe("VoiceSession streaming transcription", () => {
     detector.emit("speech_started");
     await settle();
     detector.emit("speech_stopped");
-    await settle();
+    await vi.waitFor(() => expect(sttSession.commitCount).toBe(1));
     sttSession.emitCommitted({ segmentId: "segment-1", previousSegmentId: null });
     sttSession.emitTranscript({
       segmentId: "segment-1",
@@ -309,19 +309,19 @@ describe("VoiceSession streaming transcription", () => {
       avgLogprob: -2.5,
       isLowConfidence: true,
     });
-    await settle();
-
-    expect(host.spokenInput).toEqual([]);
-    expect(host.emitted).toContainEqual(
-      expect.objectContaining({
-        type: "transcription_result",
-        payload: expect.objectContaining({
-          text: "",
-          avgLogprob: -2.5,
-          isLowConfidence: true,
+    await vi.waitFor(() =>
+      expect(host.emitted).toContainEqual(
+        expect.objectContaining({
+          type: "transcription_result",
+          payload: expect.objectContaining({
+            text: "",
+            avgLogprob: -2.5,
+            isLowConfidence: true,
+          }),
         }),
-      }),
+      ),
     );
+    expect(host.spokenInput).toEqual([]);
 
     await voiceSession.cleanup();
   });

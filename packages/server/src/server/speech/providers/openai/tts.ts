@@ -23,6 +23,7 @@ export class OpenAITTS implements TextToSpeechProvider {
     ttsConfig: TTSConfig,
     parentLogger: pino.Logger,
     private readonly transport?: CredentialTransport,
+    fetch?: typeof globalThis.fetch,
   ) {
     this.config = {
       model: "tts-1",
@@ -32,7 +33,8 @@ export class OpenAITTS implements TextToSpeechProvider {
     };
     this.logger = parentLogger.child({ module: "agent", provider: "openai", component: "tts" });
     this.openaiClient = new OpenAI({
-      ...(transport ? { fetch: transport.fetch, maxRetries: 0 } : {}),
+      fetch: transport?.fetch ?? fetch,
+      ...(transport ? { maxRetries: 0 } : {}),
       apiKey: ttsConfig.apiKey,
       ...(ttsConfig.baseUrl ? { baseURL: ttsConfig.baseUrl } : {}),
     });
@@ -79,11 +81,14 @@ export class OpenAITTS implements TextToSpeechProvider {
       );
 
       const body = response.body;
+      if (!body) throw new Error("Missing speech response body");
+      const reader = body instanceof Readable ? null : body.getReader();
       const audioStream =
-        this.transport && body
-          ? Readable.from(
+        body instanceof Readable
+          ? body
+          : Readable.from(
               (async function* () {
-                const reader = body.getReader();
+                if (!reader) return;
                 try {
                   while (true) {
                     const { value, done } = await reader.read();
@@ -94,9 +99,9 @@ export class OpenAITTS implements TextToSpeechProvider {
                   await reader.cancel();
                 }
               })(),
-            )
-          : (response.body as unknown as Readable);
+            );
       const abort = () => {
+        void reader?.cancel();
         audioStream.destroy();
         release?.();
       };

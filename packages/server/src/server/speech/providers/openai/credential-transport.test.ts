@@ -1,3 +1,6 @@
+import { existsSync, watch } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { once } from "node:events";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +14,111 @@ import { getOpenAiSpeechAvailability, initializeOpenAiSpeechServices } from "./r
 import { PersistedConfigSchema } from "../../../persisted-config.js";
 
 const directories: string[] = [];
+
+test("direct SDK TTS normalizes Web audio with a real cancellation signal", async () => {
+  const cancelled = vi.fn();
+  const fetchAudio: typeof fetch = async () =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(Buffer.from("PCM"));
+          controller.close();
+        },
+        cancel: cancelled,
+      }),
+    );
+  const tts = new OpenAITTS(
+    { apiKey: "public-fixture" },
+    pino({ level: "silent" }),
+    undefined,
+    fetchAudio,
+  );
+  const controller = new AbortController();
+  const audio = await tts.synthesizeSpeech("public fixture", controller.signal);
+  const chunks: Buffer[] = [];
+  for await (const chunk of audio.stream) chunks.push(Buffer.from(chunk));
+  expect(Buffer.concat(chunks).toString()).toBe("PCM");
+  controller.abort();
+  expect(audio.stream.destroyed).toBe(true);
+});
+test("direct SDK TTS abort cancels an unread Web response", async () => {
+  const cancelled = vi.fn();
+  const fetchAudio: typeof fetch = async () =>
+    new Response(new ReadableStream<Uint8Array>({ cancel: cancelled }));
+  const tts = new OpenAITTS(
+    { apiKey: "public-fixture" },
+    pino({ level: "silent" }),
+    undefined,
+    fetchAudio,
+  );
+  const controller = new AbortController();
+  const audio = await tts.synthesizeSpeech("public fixture", controller.signal);
+  const closed = once(audio.stream, "close");
+  controller.abort();
+  await closed;
+  expect(audio.stream.destroyed).toBe(true);
+  expect(cancelled).toHaveBeenCalledTimes(1);
+});
+
+async function barrier(directory: string, name: string) {
+  const watcher = watch(directory);
+  try {
+    while (!existsSync(join(directory, name))) await once(watcher, "change");
+  } finally {
+    watcher.close();
+  }
+}
+
+test("startup TTS abort releases last lease without a terminal latch", async () => {
+  const transport = await fixture("withheld-ready");
+  const directory = directories[directories.length - 1]!;
+  const tts = new OpenAITTS({ apiKey: "managed" }, pino({ level: "silent" }), transport);
+  const controller = new AbortController();
+  const pending = tts.synthesizeSpeech("public fixture", controller.signal);
+  const rejected = expect(pending).rejects.toThrow("Managed speech synthesis failed");
+  await barrier(directory, "started");
+  controller.abort();
+  await rejected;
+  await barrier(directory, "stopped");
+  expect(transport.terminalFailure).toBe(false);
+  expect((await readFile(join(directory, "started"), "utf8")).trim().split("\n")).toHaveLength(1);
+});
+
+test("startup TTS abort preserves retained STT and shared readiness", async () => {
+  const transport = await fixture("withheld-ready");
+  const directory = directories[directories.length - 1]!;
+  const logger = pino({ level: "silent" });
+  const session = new OpenAISTT(
+    { apiKey: "managed", model: "gpt-4o-transcribe" },
+    logger,
+    transport,
+  ).createSession({ logger });
+  await session.connect();
+  const transcript = new Promise<string>((resolve, reject) => {
+    session.on("transcript", (event) => resolve(event.transcript));
+    session.on("error", reject);
+  });
+  session.appendPcm16(Buffer.alloc(100));
+  session.commit();
+  const controller = new AbortController();
+  const pending = new OpenAITTS({ apiKey: "managed" }, logger, transport).synthesizeSpeech(
+    "public fixture",
+    controller.signal,
+  );
+  const rejected = expect(pending).rejects.toThrow("Managed speech synthesis failed");
+  await barrier(directory, "started");
+  controller.abort();
+  await rejected;
+  expect(transport.terminalFailure).toBe(false);
+  expect(existsSync(join(directory, "stopped"))).toBe(false);
+  await writeFile(join(directory, "allow-ready"), "public barrier");
+  expect(await transcript).toBe("public transcript 1");
+  expect((await readFile(join(directory, "started"), "utf8")).trim().split("\n")).toHaveLength(1);
+  session.close();
+  await barrier(directory, "stopped");
+  expect(transport.terminalFailure).toBe(false);
+});
+
 test("accepts 4.8MB canonical PCM without overflowing the validator", async () => {
   const transport = await fixture("large");
   const release = transport.acquire();
@@ -190,7 +298,16 @@ async function fixture(mode = "success") {
     `#!${process.execPath}
 const readline = require('node:readline');
 if (JSON.stringify(process.argv.slice(2)) !== JSON.stringify(['exec','paseo-speech-shared','--consumer','paseo-speech'])) process.exit(2);
-process.stdout.write(JSON.stringify({type:'ready',protocol:'paseo-speech-v1'})+'\\n');
+const fs = require('node:fs');
+const directory = ${JSON.stringify(directory)};
+const ready = () => process.stdout.write(JSON.stringify({type:'ready',protocol:'paseo-speech-v1'})+'\\n');
+if (${JSON.stringify(mode)} === 'withheld-ready') {
+ process.on('SIGTERM', () => { fs.writeFileSync(directory+'/stopped', 'stopped'); process.exit(0); });
+ const watcher = fs.watch(directory, () => {
+  if (fs.existsSync(directory+'/allow-ready')) { watcher.close(); ready(); }
+ });
+ fs.appendFileSync(directory+'/started', process.pid+'\\n');
+} else ready();
 let count=0, held;
 readline.createInterface({input:process.stdin}).on('line',line=>{
  const request=JSON.parse(line); count++;
