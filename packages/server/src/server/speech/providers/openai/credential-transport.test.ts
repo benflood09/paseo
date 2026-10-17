@@ -4,6 +4,7 @@ import { once } from "node:events";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { SpawnOptionsWithoutStdio } from "node:child_process";
 import pino from "pino";
 import { afterEach, expect, test, vi } from "vitest";
 import { CredentialTransport, ManagedSpeechTerminalError } from "./credential-transport.js";
@@ -14,6 +15,41 @@ import { getOpenAiSpeechAvailability, initializeOpenAiSpeechServices } from "./r
 import { PersistedConfigSchema } from "../../../persisted-config.js";
 
 const directories: string[] = [];
+
+const fixtureChildren = vi.hoisted(() => ({
+  scripts: new Set<string>(),
+  exited: new Set<string>(),
+  closed: new Map<string, Promise<void>>(),
+  allClosed: [] as Promise<void>[],
+}));
+
+// Windows cannot execute a POSIX shebang. Keep real child I/O and the fixed
+// consumer arguments, but run these public script fixtures through Node.
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return {
+    ...actual,
+    spawn(executable: string, args: readonly string[], options: SpawnOptionsWithoutStdio) {
+      if (!fixtureChildren.scripts.has(executable)) return actual.spawn(executable, args, options);
+      const child = actual.spawn(process.execPath, [executable, ...args], options);
+      const closed = new Promise<void>((resolve) => {
+        child.once("close", () => {
+          fixtureChildren.exited.add(executable);
+          resolve();
+        });
+      });
+      fixtureChildren.closed.set(executable, closed);
+      fixtureChildren.allClosed.push(closed);
+      return child;
+    },
+  };
+});
+
+async function waitForFixtureExit(directory: string): Promise<void> {
+  const closed = fixtureChildren.closed.get(join(directory, "launcher"));
+  if (!closed) throw new Error("Fixture child was not launched");
+  await closed;
+}
 
 test("direct SDK TTS normalizes Web audio with a real cancellation signal", async () => {
   const cancelled = vi.fn();
@@ -150,7 +186,7 @@ test("startup TTS abort releases last lease without a terminal latch", async () 
   await barrier(directory, "started");
   controller.abort();
   await rejected;
-  await barrier(directory, "stopped");
+  await waitForFixtureExit(directory);
   expect(transport.terminalFailure).toBe(false);
   expect((await readFile(join(directory, "started"), "utf8")).trim().split("\n")).toHaveLength(1);
 });
@@ -181,12 +217,12 @@ test("startup TTS abort preserves retained STT and shared readiness", async () =
   controller.abort();
   await rejected;
   expect(transport.terminalFailure).toBe(false);
-  expect(existsSync(join(directory, "stopped"))).toBe(false);
+  expect(fixtureChildren.exited.has(join(directory, "launcher"))).toBe(false);
   await writeFile(join(directory, "allow-ready"), "public barrier");
   expect(await transcript).toBe("public transcript 1");
   expect((await readFile(join(directory, "started"), "utf8")).trim().split("\n")).toHaveLength(1);
   session.close();
-  await barrier(directory, "stopped");
+  await waitForFixtureExit(directory);
   expect(transport.terminalFailure).toBe(false);
 });
 
@@ -353,11 +389,16 @@ test("last lease ends the child context and owner shutdown forbids new leases", 
 const transports: CredentialTransport[] = [];
 afterEach(async () => {
   transports.forEach((transport) => transport.close());
+  await Promise.all(fixtureChildren.allClosed);
   await Promise.all(
     directories.map((directory) => rm(directory, { recursive: true, force: true })),
   );
   directories.length = 0;
   transports.length = 0;
+  fixtureChildren.scripts.clear();
+  fixtureChildren.exited.clear();
+  fixtureChildren.closed.clear();
+  fixtureChildren.allClosed.length = 0;
 });
 
 async function fixture(mode = "success") {
@@ -373,7 +414,6 @@ const fs = require('node:fs');
 const directory = ${JSON.stringify(directory)};
 const ready = () => process.stdout.write(JSON.stringify({type:'ready',protocol:'paseo-speech-v1'})+'\\n');
 if (${JSON.stringify(mode)} === 'withheld-ready') {
- process.on('SIGTERM', () => { fs.writeFileSync(directory+'/stopped', 'stopped'); process.exit(0); });
  const watcher = fs.watch(directory, () => {
   if (fs.existsSync(directory+'/allow-ready')) { watcher.close(); ready(); }
  });
@@ -401,6 +441,7 @@ readline.createInterface({input:process.stdin}).on('line',line=>{
 `,
   );
   await chmod(launcher, 0o700);
+  fixtureChildren.scripts.add(launcher);
   const transport = new CredentialTransport(launcher);
   transports.push(transport);
   return transport;
