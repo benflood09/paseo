@@ -58,6 +58,11 @@ const OpenAiSpeechEndpointSchema = z
 
 const OpenAiProviderSchema = z
   .object({
+    credentialLauncher: z
+      .string()
+      .min(1)
+      .refine(path.isAbsolute, "Expected an absolute launcher path")
+      .optional(),
     apiKey: z.string().min(1).optional(),
     baseUrl: z.string().trim().min(1).optional(),
     stt: OpenAiSpeechEndpointSchema.optional(),

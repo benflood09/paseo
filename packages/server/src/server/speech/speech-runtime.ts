@@ -342,6 +342,7 @@ export function createSpeechService(params: {
     defaultModelIds: LocalSpeechModelId[];
   } | null = null;
   let localCleanup = () => {};
+  let openaiCleanup = () => {};
   let localVoiceTtsProvider: TextToSpeechProvider | null = null;
 
   let missingLocalModelIds: LocalSpeechModelId[] = [];
@@ -472,6 +473,8 @@ export function createSpeechService(params: {
     });
 
     const previousLocalCleanup = localCleanup;
+    openaiCleanup();
+    openaiCleanup = nextOpenAiSpeech.cleanup ?? (() => {});
     turnDetectionService = nextOpenAiSpeech.turnDetectionService;
     sttService = nextOpenAiSpeech.sttService;
     ttsService = nextOpenAiSpeech.ttsService;
@@ -666,6 +669,7 @@ export function createSpeechService(params: {
       monitorTimeout = null;
     }
     localCleanup();
+    openaiCleanup();
     backgroundDownloadAbortController?.abort();
     await backgroundDownloadPromise?.catch(() => undefined);
     backgroundDownloadPromise = null;

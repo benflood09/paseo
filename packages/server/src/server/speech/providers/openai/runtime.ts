@@ -6,6 +6,7 @@ import type { TurnDetectionProvider } from "../../turn-detection-provider.js";
 import { DEFAULT_OPENAI_TTS_MODEL, type OpenAiSpeechProviderConfig } from "./config.js";
 import { OpenAISTT } from "./stt.js";
 import { OpenAITTS } from "./tts.js";
+import { CredentialTransport } from "./credential-transport.js";
 
 interface OpenAiCredentialState {
   openaiSttApiKey: string | undefined;
@@ -20,6 +21,7 @@ export interface OpenAiSpeechAvailability {
 }
 
 export interface SpeechServices {
+  cleanup?: () => void;
   turnDetectionService: TurnDetectionProvider | null;
   sttService: SpeechToTextProvider | null;
   ttsService: TextToSpeechProvider | null;
@@ -40,6 +42,7 @@ function resolveOpenAiCredentials(
 export function getOpenAiSpeechAvailability(
   openaiConfig: OpenAiSpeechProviderConfig | undefined,
 ): OpenAiSpeechAvailability {
+  if (openaiConfig?.credentialLauncher) return { stt: true, tts: true, dictationStt: true };
   const credentials = resolveOpenAiCredentials(openaiConfig);
   return {
     stt: Boolean(credentials.openaiSttApiKey),
@@ -54,6 +57,7 @@ export function validateOpenAiCredentialRequirements(params: {
   logger: Logger;
 }): void {
   const { providers, logger, openaiConfig } = params;
+  if (openaiConfig?.credentialLauncher) return;
   const openAiCredentials = resolveOpenAiCredentials(openaiConfig);
 
   const missingOpenAiCredentialsFor: string[] = [];
@@ -122,6 +126,54 @@ function createOpenAiTts(
 }
 
 export function initializeOpenAiSpeechServices(params: {
+  providers: RequestedSpeechProviders;
+  openaiConfig: OpenAiSpeechProviderConfig | undefined;
+  existing: SpeechServices;
+  logger: Logger;
+}): SpeechServices {
+  const { providers, openaiConfig, existing, logger } = params;
+  if (openaiConfig?.credentialLauncher) {
+    const transport = new CredentialTransport(openaiConfig.credentialLauncher);
+    const stt = new OpenAISTT(
+      {
+        apiKey: "paseo-public-speech-marker",
+        model: "gpt-4o-transcribe",
+        confidenceThreshold: openaiConfig.stt?.confidenceThreshold,
+      },
+      logger,
+      transport,
+    );
+    const tts = new OpenAITTS(
+      {
+        apiKey: "paseo-public-speech-marker",
+        model: "tts-1",
+        voice: "alloy",
+        responseFormat: "pcm",
+      },
+      logger,
+      transport,
+    );
+    return {
+      ...existing,
+      sttService:
+        providers.voiceStt.enabled !== false && providers.voiceStt.provider === "openai"
+          ? stt
+          : existing.sttService,
+      dictationSttService:
+        providers.dictationStt.enabled !== false && providers.dictationStt.provider === "openai"
+          ? stt
+          : existing.dictationSttService,
+      ttsService:
+        providers.voiceTts.enabled !== false && providers.voiceTts.provider === "openai"
+          ? tts
+          : existing.ttsService,
+      cleanup: () => transport.shutdown(),
+    };
+  }
+  return initializeDirectOpenAiSpeechServices(params);
+}
+
+function initializeDirectOpenAiSpeechServices(params: {
   providers: RequestedSpeechProviders;
   openaiConfig: OpenAiSpeechProviderConfig | undefined;
   existing: SpeechServices;

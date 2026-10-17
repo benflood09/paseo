@@ -1,6 +1,7 @@
 import type pino from "pino";
 import { OpenAI } from "openai";
 import { Readable } from "node:stream";
+import { ManagedSpeechTerminalError, type CredentialTransport } from "./credential-transport.js";
 import type { SpeechStreamResult, TextToSpeechProvider } from "../../speech-provider.js";
 
 export type { SpeechStreamResult };
@@ -18,7 +19,11 @@ export class OpenAITTS implements TextToSpeechProvider {
   private readonly config: TTSConfig;
   private readonly logger: pino.Logger;
 
-  constructor(ttsConfig: TTSConfig, parentLogger: pino.Logger) {
+  constructor(
+    ttsConfig: TTSConfig,
+    parentLogger: pino.Logger,
+    private readonly transport?: CredentialTransport,
+  ) {
     this.config = {
       model: "tts-1",
       voice: "alloy",
@@ -27,6 +32,7 @@ export class OpenAITTS implements TextToSpeechProvider {
     };
     this.logger = parentLogger.child({ module: "agent", provider: "openai", component: "tts" });
     this.openaiClient = new OpenAI({
+      ...(transport ? { fetch: transport.fetch, maxRetries: 0 } : {}),
       apiKey: ttsConfig.apiKey,
       ...(ttsConfig.baseUrl ? { baseURL: ttsConfig.baseUrl } : {}),
     });
@@ -41,12 +47,14 @@ export class OpenAITTS implements TextToSpeechProvider {
     return this.config;
   }
 
-  public async synthesizeSpeech(text: string): Promise<SpeechStreamResult> {
+  public async synthesizeSpeech(text: string, signal?: AbortSignal): Promise<SpeechStreamResult> {
     if (!text || text.trim().length === 0) {
       throw new Error("Cannot synthesize empty text");
     }
 
+    signal?.throwIfAborted();
     const startTime = Date.now();
+    const release = this.transport?.acquire();
 
     try {
       this.logger.debug(
@@ -54,20 +62,55 @@ export class OpenAITTS implements TextToSpeechProvider {
         "Synthesizing speech",
       );
 
-      const response = await this.openaiClient.audio.speech.create({
-        model: this.config.model!,
-        voice: this.config.voice!,
-        input: text,
-        response_format: this.config.responseFormat as
-          | "mp3"
-          | "opus"
-          | "aac"
-          | "flac"
-          | "wav"
-          | "pcm",
-      });
+      const response = await this.openaiClient.audio.speech.create(
+        {
+          model: this.config.model!,
+          voice: this.config.voice!,
+          input: text,
+          response_format: this.config.responseFormat as
+            | "mp3"
+            | "opus"
+            | "aac"
+            | "flac"
+            | "wav"
+            | "pcm",
+        },
+        { signal },
+      );
 
-      const audioStream = response.body as unknown as Readable;
+      const body = response.body;
+      const audioStream =
+        this.transport && body
+          ? Readable.from(
+              (async function* () {
+                const reader = body.getReader();
+                try {
+                  while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) return;
+                    yield Buffer.from(value);
+                  }
+                } finally {
+                  await reader.cancel();
+                }
+              })(),
+            )
+          : (response.body as unknown as Readable);
+      const abort = () => {
+        audioStream.destroy();
+        release?.();
+      };
+      const cleanup = () => {
+        signal?.removeEventListener("abort", abort);
+        release?.();
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+      if (this.transport || signal) {
+        audioStream.once("close", cleanup);
+        audioStream.once("end", cleanup);
+        audioStream.once("error", cleanup);
+      }
 
       const duration = Date.now() - startTime;
       this.logger.debug({ duration }, "Speech synthesis stream ready");
@@ -77,6 +120,14 @@ export class OpenAITTS implements TextToSpeechProvider {
         format: this.config.responseFormat || "mp3",
       };
     } catch (error) {
+      release?.();
+      // Provider/SDK errors can contain credential-owner response bodies.
+      // eslint-disable-next-line preserve-caught-error
+      if (this.transport) {
+        if (this.transport.terminalFailure) throw new ManagedSpeechTerminalError();
+        // eslint-disable-next-line preserve-caught-error -- owner errors must not escape via cause
+        throw new Error("Managed speech synthesis failed");
+      }
       this.logger.error({ err: error }, "Speech synthesis error");
       const message = error instanceof Error ? error.message : String(error);
       throw new Error(`TTS synthesis failed: ${message}`, { cause: error });
